@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 import anthropic
+from fastapi import HTTPException, status
 import httpx
 
 from .auth import AuthUser
@@ -334,7 +335,18 @@ def chat_turn(
     with get_connection() as conn:
         with conn.cursor() as cur:
             resolved_session_id = session_id
-            if not resolved_session_id:
+            if resolved_session_id:
+                cur.execute(
+                    "SELECT profile_id FROM public.chat_sessions WHERE id = %s",
+                    (resolved_session_id,),
+                )
+                session_row = cur.fetchone()
+                if not session_row or str(session_row["profile_id"]) != str(user.user_id):
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Chat session not found",
+                    )
+            else:
                 cur.execute(
                     "INSERT INTO public.chat_sessions (profile_id) VALUES (%s) RETURNING id",
                     (user.user_id,),

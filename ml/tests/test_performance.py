@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import pandas as pd
 from edubase_ml.performance import (
     GBR_VERSION,
@@ -7,6 +8,7 @@ from edubase_ml.performance import (
     determine_risk_level,
     predict_gpa_heuristic,
     predict_student_performance,
+    run_performance_predictions,
 )
 
 
@@ -92,3 +94,72 @@ def test_performance_prediction_gbr_over_50_rows():
     assert "predicted_gpa" in preds[0]
     assert 0.0 <= preds[0]["predicted_gpa"] <= 10.0
     assert len(preds[0]["factors"]) <= 3
+
+
+def test_run_performance_predictions_omitted_term_resolves_current(monkeypatch):
+    class MockCursor:
+        def __init__(self, current_term_id="term_current_42"):
+            self.current_term_id = current_term_id
+            self.inserted = []
+            self._row = None
+
+        def execute(self, query, params=None):
+            if "academic_terms" in query:
+                self._row = {"id": self.current_term_id}
+            elif "INSERT INTO" in query:
+                self.inserted.append((query, params))
+                self._row = None
+            else:
+                self._row = None
+
+        def fetchone(self):
+            return self._row
+
+        def fetchall(self):
+            return [self._row] if self._row else []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class MockConn:
+        def __init__(self, cur):
+            self._cur = cur
+
+        def cursor(self):
+            return self._cur
+
+        def commit(self):
+            pass
+
+    mock_cur = MockCursor("term_current_42")
+
+    @contextmanager
+    def fake_get_connection():
+        yield MockConn(mock_cur)
+
+    sample_df = pd.DataFrame([{
+        "student_id": "stud_1",
+        "attendance_pct": 85.0,
+        "internal_marks_pct": 80.0,
+        "lab_pct": 80.0,
+        "previous_cgpa": 8.0,
+        "credit_load": 20.0,
+        "late_ratio": 0.0,
+        "credit_weighted_gpa": None,
+    }])
+
+    monkeypatch.setattr("edubase_ml.performance.get_connection", fake_get_connection)
+    monkeypatch.setattr("edubase_ml.performance.fetch_feature_data", lambda conn, term_id: sample_df)
+
+    res = run_performance_predictions(term_id=None)
+
+    assert res["term_id"] == "term_current_42"
+    assert res["total"] == 1
+    assert len(mock_cur.inserted) == 1
+    # Check that the persisted term_id argument in INSERT is resolved current term id
+    insert_query, insert_params = mock_cur.inserted[0]
+    assert insert_params[1] == "term_current_42"
+

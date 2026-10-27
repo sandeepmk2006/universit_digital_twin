@@ -120,7 +120,15 @@ def predict_student_performance(
 def run_performance_predictions(term_id: str | None = None) -> dict[str, Any]:
     """Execute prediction pipeline, persist to DB, and return summary counts."""
     with get_connection() as conn:
-        df_features = fetch_feature_data(conn, term_id=term_id)
+        resolved_term_id = term_id
+        if not resolved_term_id:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM public.academic_terms WHERE is_current = true LIMIT 1")
+                term_row = cur.fetchone()
+                if term_row:
+                    resolved_term_id = str(term_row["id"])
+
+        df_features = fetch_feature_data(conn, term_id=resolved_term_id)
         predictions, model_version = predict_student_performance(df_features)
 
         if not predictions:
@@ -130,7 +138,7 @@ def run_performance_predictions(term_id: str | None = None) -> dict[str, Any]:
                 "medium_risk": 0,
                 "low_risk": 0,
                 "model_version": model_version,
-                "term_id": term_id,
+                "term_id": resolved_term_id,
             }
 
         counts = {"high": 0, "medium": 0, "low": 0}
@@ -145,7 +153,7 @@ def run_performance_predictions(term_id: str | None = None) -> dict[str, Any]:
                     """,
                     (
                         p["student_id"],
-                        term_id,
+                        resolved_term_id,
                         p["predicted_gpa"],
                         p["risk_level"],
                         json.dumps(p["factors"]),
@@ -160,5 +168,5 @@ def run_performance_predictions(term_id: str | None = None) -> dict[str, Any]:
         "medium_risk": counts["medium"],
         "low_risk": counts["low"],
         "model_version": model_version,
-        "term_id": term_id,
+        "term_id": resolved_term_id,
     }

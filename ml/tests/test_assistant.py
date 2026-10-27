@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import contextmanager
 from typing import Any
-from edubase_ml.assistant import dispatch_tool_call, run_assistant_loop
+import pytest
+from fastapi import HTTPException
+from edubase_ml.assistant import chat_turn, dispatch_tool_call, run_assistant_loop
 from edubase_ml.auth import AuthUser
 
 
@@ -190,3 +193,65 @@ def test_run_assistant_loop_with_tool_call_and_fake_anthropic():
     assert last_msg["role"] == "user"
     assert last_msg["content"][0]["type"] == "tool_result"
     assert "90.0%" in last_msg["content"][0]["content"]
+
+
+def test_chat_turn_session_ownership_mismatch_raises_404(monkeypatch):
+    data_map = {
+        "chat_sessions": [{"profile_id": "other_profile_id"}],
+    }
+    fake_conn = FakeConnection(data_map)
+
+    @contextmanager
+    def fake_get_conn():
+        yield fake_conn
+
+    monkeypatch.setattr("edubase_ml.assistant.get_connection", fake_get_conn)
+    user = AuthUser(user_id="my_profile_id", email="student@univ.edu")
+
+    with pytest.raises(HTTPException) as exc_info:
+        chat_turn("hello", "session_foreign", user)
+    assert exc_info.value.status_code == 404
+
+
+def test_chat_turn_session_not_found_raises_404(monkeypatch):
+    data_map = {
+        "chat_sessions": [],
+    }
+    fake_conn = FakeConnection(data_map)
+
+    @contextmanager
+    def fake_get_conn():
+        yield fake_conn
+
+    monkeypatch.setattr("edubase_ml.assistant.get_connection", fake_get_conn)
+    user = AuthUser(user_id="my_profile_id", email="student@univ.edu")
+
+    with pytest.raises(HTTPException) as exc_info:
+        chat_turn("hello", "nonexistent_session", user)
+    assert exc_info.value.status_code == 404
+
+
+def test_chat_turn_session_ownership_success(monkeypatch):
+    data_map = {
+        "chat_sessions": [{"profile_id": "my_profile_id"}],
+        "chat_messages": [],
+    }
+    fake_conn = FakeConnection(data_map)
+
+    @contextmanager
+    def fake_get_conn():
+        yield fake_conn
+
+    monkeypatch.setattr("edubase_ml.assistant.get_connection", fake_get_conn)
+    user = AuthUser(user_id="my_profile_id", email="student@univ.edu")
+    client = FakeAnthropicClient([
+        FakeAnthropicResponse(
+            content=[FakeTextBlock("Verified chat response")],
+            stop_reason="end_turn",
+        )
+    ])
+
+    result = chat_turn("hello", "my_session_1", user, client=client)
+    assert result["session_id"] == "my_session_1"
+    assert result["response"] == "Verified chat response"
+

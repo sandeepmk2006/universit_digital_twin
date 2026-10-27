@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 import httpx
 
 from .config import settings
 from .db import get_connection
+
+STAFF_EXCLUDED_ROLES = {"student", "alumni"}
+
+
+def is_staff_role(role: str | None) -> bool:
+    return (role or "").strip().lower() not in STAFF_EXCLUDED_ROLES
 
 
 @dataclass
@@ -18,6 +24,10 @@ class AuthUser:
     student_id: str | None = None
     program_id: str | None = None
     current_semester: int | None = None
+
+    @property
+    def is_staff(self) -> bool:
+        return is_staff_role(self.role)
 
 
 def verify_supabase_token(token: str) -> dict[str, Any]:
@@ -80,7 +90,12 @@ def resolve_auth_user(user_id: str, email: str = "") -> AuthUser:
     )
 
 
-def get_current_user(authorization: str = Header(...)) -> AuthUser:
+def get_current_user(authorization: str | None = Header(None)) -> AuthUser:
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing Authorization header",
+        )
     parts = authorization.split(" ")
     if len(parts) != 2 or parts[0].lower() != "bearer":
         raise HTTPException(
@@ -97,3 +112,27 @@ def get_current_user(authorization: str = Header(...)) -> AuthUser:
             detail="Token payload missing user id",
         )
     return resolve_auth_user(user_id, email)
+
+
+def require_staff(user: AuthUser = Depends(get_current_user)) -> AuthUser:
+    if not user.is_staff:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: staff access required",
+        )
+    return user
+
+
+def require_student_or_staff(
+    student_id: str,
+    user: AuthUser = Depends(get_current_user),
+) -> AuthUser:
+    if user.is_staff:
+        return user
+    if user.student_id and str(user.student_id) == str(student_id):
+        return user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Forbidden: students can only access their own recommendations",
+    )
+

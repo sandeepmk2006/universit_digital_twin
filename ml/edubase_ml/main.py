@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from .allocation import allocate_rooms_for_term
 from .assistant import chat_turn, reindex_kb_documents
-from .auth import AuthUser, get_current_user
+from .auth import AuthUser, get_current_user, require_staff, require_student_or_staff
 from .config import settings
 from .electives import recommend_electives_for_student
 from .performance import run_performance_predictions
@@ -43,25 +43,37 @@ def health_check() -> dict[str, str]:
 
 
 @app.post("/predict/performance", tags=["Performance"])
-def predict_performance(body: PredictPerformanceBody | None = None) -> dict[str, Any]:
+def predict_performance(
+    body: PredictPerformanceBody | None = None,
+    user: AuthUser = Depends(require_staff),
+) -> dict[str, Any]:
     term_id = body.term_id if body else None
     return run_performance_predictions(term_id=term_id)
 
 
 @app.post("/recommend/electives/{student_id}", tags=["Recommendations"])
-def recommend_electives(student_id: str) -> list[dict[str, Any]]:
+def recommend_electives(
+    student_id: str,
+    user: AuthUser = Depends(require_student_or_staff),
+) -> list[dict[str, Any]]:
     recommendations = recommend_electives_for_student(student_id)
     return recommendations
 
 
 @app.post("/recommend/placement/{student_id}", tags=["Recommendations"])
-def recommend_placement(student_id: str) -> list[dict[str, Any]]:
+def recommend_placement(
+    student_id: str,
+    user: AuthUser = Depends(require_student_or_staff),
+) -> list[dict[str, Any]]:
     gaps = recommend_placement_prep(student_id)
     return gaps
 
 
 @app.post("/allocate/rooms/{term_id}", tags=["Allocation"])
-def allocate_rooms(term_id: str) -> dict[str, Any]:
+def allocate_rooms(
+    term_id: str,
+    user: AuthUser = Depends(require_staff),
+) -> dict[str, Any]:
     result = allocate_rooms_for_term(term_id)
     if result["status"] == "failed":
         raise HTTPException(
@@ -85,5 +97,7 @@ def chat(
 
 
 @app.post("/kb/reindex", tags=["Knowledge Base"])
-def reindex_kb() -> dict[str, Any]:
+def reindex_kb(
+    user: AuthUser = Depends(require_staff),
+) -> dict[str, Any]:
     return reindex_kb_documents()
