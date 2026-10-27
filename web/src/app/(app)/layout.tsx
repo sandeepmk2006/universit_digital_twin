@@ -1,5 +1,11 @@
 import { Shell } from "@/components/shell";
-import { getProfile } from "@/lib/data";
+import { getCurrentTerm, getProfile } from "@/lib/data";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  return <Shell profile={await getProfile()}>{children}</Shell>;
+  const [profile, term] = await Promise.all([getProfile(), getCurrentTerm()]);
+  return (
+    <Shell profile={profile} term={term}>
+      {children}
+    </Shell>
+  );
 }

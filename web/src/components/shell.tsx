@@ -70,9 +70,11 @@ const groups = [
 ] as const;
 export function Shell({
   profile,
+  term,
   children,
 }: {
   profile: Profile | null;
+  term: { name: string; week: number; total: number } | null;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -84,10 +86,8 @@ export function Shell({
         className={`fixed inset-y-0 left-0 z-30 w-60 border-r border-[var(--line)] bg-[var(--panel)] p-4 transition-transform md:static md:translate-x-0 ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="mb-8 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <span className="grid h-7 w-7 place-items-center rounded bg-indigo-600 text-xs font-bold text-white">
-              E
-            </span>
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+            <GraduationCap size={20} className="text-indigo-600" />
             EduBase
           </Link>
           <button className="md:hidden" onClick={() => setOpen(false)}>
@@ -122,6 +122,14 @@ export function Shell({
           <button className="md:hidden" onClick={() => setOpen(true)}>
             <Menu size={19} />
           </button>
+          {term && (
+            <div className="hidden items-baseline gap-2 sm:flex">
+              <span className="text-sm font-medium">{term.name} term</span>
+              <span className="text-xs text-[var(--muted)]">
+                Week {term.week} of {term.total}
+              </span>
+            </div>
+          )}
           <div className="ml-auto flex items-center gap-3">
             <div className="text-right">
               <div className="text-sm font-medium">{profile?.full_name ?? "User"}</div>

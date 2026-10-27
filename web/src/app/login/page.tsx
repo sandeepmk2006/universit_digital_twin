@@ -1,5 +1,6 @@
 "use client";
 import { FormEvent, useState } from "react";
+import { GraduationCap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -23,10 +24,8 @@ export default function LoginPage() {
         onSubmit={submit}
         className="w-full max-w-sm border border-[var(--line)] bg-[var(--panel)] p-7"
       >
-        <div className="mb-8 flex items-center gap-2 font-semibold">
-          <span className="grid h-7 w-7 place-items-center rounded bg-indigo-600 text-xs font-bold text-white">
-            E
-          </span>
+        <div className="mb-8 flex items-center gap-2 font-semibold tracking-tight">
+          <GraduationCap size={22} className="text-indigo-600" />
           EduBase
         </div>
         <h1 className="text-xl font-semibold">Sign in</h1>
