@@ -4,18 +4,9 @@
   --ink: #18181b;
   --muted: #71717a;
   --line: #e4e4e7;
-  --paper: #fafafa;
+  --paper: #ffffff;
   --panel: #ffffff;
   --accent: #4f46e5;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #f4f4f5;
-    --muted: #a1a1aa;
-    --line: #27272a;
-    --paper: #09090b;
-    --panel: #18181b;
-  }
 }
 * {
   box-sizing: border-box;
@@ -25,7 +16,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-size: 14px;
-  font-family: Arial, sans-serif;
+  font-family: inherit;
 }
 button,
 input,

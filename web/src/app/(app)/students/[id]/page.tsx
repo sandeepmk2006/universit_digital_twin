@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -18,12 +19,12 @@ function explainFactors(value: unknown) {
 export default async function StudentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [student, enrollments, prediction, recommendations] = await Promise.all([
+  const [student, enrollments, prediction, recommendations, studentRelations] = await Promise.all([
     supabase.from("v_student_directory").select("*").eq("id", id).single(),
     supabase
       .from("enrollments")
       .select(
-        "id,marks,grade,grade_point,attendance_pct,course_sections(section,courses(code,title))",
+        "id,marks,grade,grade_point,attendance_pct,course_sections(id,section,courses(code,title))",
       )
       .eq("student_id", id),
     supabase
@@ -39,12 +40,29 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
       .eq("student_id", id)
       .order("created_at", { ascending: false })
       .limit(5),
+    supabase
+      .from("students")
+      .select("mentor_id,faculty(id,full_name,employee_no)")
+      .eq("id", id)
+      .single(),
   ]);
   if (!student.data) notFound();
   const s = student.data as Row;
+  const mentor = Array.isArray(studentRelations.data?.faculty)
+    ? studentRelations.data.faculty[0]
+    : studentRelations.data?.faculty;
   const courseName = (row: Row) => {
-    const section = row.course_sections as { courses?: { code?: string; title?: string } } | null;
-    return `${section?.courses?.code ?? "—"} · ${section?.courses?.title ?? "Untitled"}`;
+    const section = row.course_sections as {
+      id?: string;
+      courses?: { code?: string; title?: string };
+    } | null;
+    return section?.id ? (
+      <Link className="text-indigo-600 hover:underline" href={`/courses/${section.id}`}>
+        {section.courses?.code ?? "—"} · {section.courses?.title ?? "Untitled"}
+      </Link>
+    ) : (
+      `${section?.courses?.code ?? "—"} · ${section?.courses?.title ?? "Untitled"}`
+    );
   };
   return (
     <>
@@ -52,6 +70,14 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
         title={String(s.full_name)}
         description={`${String(s.roll_no)} · ${String(s.program_code)} · ${String(s.department)}`}
       />
+      {mentor ? (
+        <p className="mb-4 text-sm text-[var(--muted)]">
+          Mentor:{" "}
+          <Link className="text-indigo-600 hover:underline" href={`/faculty/${String(mentor.id)}`}>
+            {String(mentor.full_name)}
+          </Link>
+        </p>
+      ) : null}
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           ["Roll no.", s.roll_no],

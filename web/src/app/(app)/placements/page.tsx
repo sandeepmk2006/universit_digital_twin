@@ -7,7 +7,7 @@ import type { Row } from "@/types/db";
 export default async function PlacementsPage() {
   const { data } = await (await createClient())
     .from("v_placement_funnel")
-    .select("*")
+    .select("id,company,role_title,package_lpa,drive_date,status,applied,progressed,offers")
     .order("drive_date", { ascending: true });
   const rows = (data ?? []) as Row[];
   const totals = ["applied", "progressed", "offers"].map((key) => ({
@@ -58,6 +58,7 @@ export default async function PlacementsPage() {
             },
             { key: "offers", label: "Offers" },
           ]}
+          rowHref={(row) => `/placements/${String(row.id)}`}
           empty="No placement drives are scheduled."
         />
       </div>

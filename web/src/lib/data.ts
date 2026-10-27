@@ -8,7 +8,7 @@ export async function queryTable(
   search?: string,
 ) {
   const supabase = await createClient();
-  let query = supabase.from(table).select(columns, { count: "exact" });
+  let query = supabase.from(table).select(columns, { count: "estimated" });
   if (search) query = query.ilike("name", `%${search}%`);
   const from = (page - 1) * pageSize;
   const { data, count, error } = await query.range(from, from + pageSize - 1);

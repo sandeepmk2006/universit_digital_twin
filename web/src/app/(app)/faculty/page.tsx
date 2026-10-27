@@ -5,7 +5,7 @@ export default async function FacultyPage() {
   const supabase = await createClient();
   const { data } = await supabase
     .from("v_faculty_workload")
-    .select("*")
+    .select("faculty_id,full_name,department_id,max_weekly_hours,weekly_hours,sections")
     .order("weekly_hours", { ascending: false });
   return (
     <>
@@ -33,7 +33,7 @@ export default async function FacultyPage() {
               const max = Number(r.max_weekly_hours);
               return (
                 <div className="w-32">
-                  <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800">
+                  <div className="h-1.5 bg-zinc-100">
                     <div
                       className={`h-1.5 ${n > max ? "bg-rose-500" : "bg-indigo-600"}`}
                       style={{ width: `${Math.min(max ? (n / max) * 100 : 0, 100)}%` }}
@@ -47,6 +47,7 @@ export default async function FacultyPage() {
             },
           },
         ]}
+        rowHref={(row) => `/faculty/${String(row.faculty_id)}`}
         empty="No faculty workload data is available."
       />
     </>

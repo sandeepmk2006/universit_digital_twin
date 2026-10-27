@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/components/ui";
 import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +19,9 @@ export default async function StudentsPage({
   const supabase = await createClient();
   let query = supabase
     .from("v_student_directory")
-    .select("*", { count: "exact" })
+    .select("id,roll_no,full_name,department,current_semester,attendance_pct,risk_level,status", {
+      count: "estimated",
+    })
     .range((page - 1) * pageSize, page * pageSize - 1)
     .order("full_name");
   if (q) query = query.or(`full_name.ilike.%${q}%,roll_no.ilike.%${q}%`);
@@ -56,11 +57,7 @@ export default async function StudentsPage({
           {
             key: "roll_no",
             label: "Roll no.",
-            render: (r) => (
-              <Link className="font-medium text-indigo-600" href={`/students/${String(r.id)}`}>
-                {String(r.roll_no)}
-              </Link>
-            ),
+            render: (r) => <span className="font-medium text-indigo-600">{String(r.roll_no)}</span>,
           },
           { key: "full_name", label: "Student" },
           { key: "department", label: "Department" },
@@ -89,6 +86,7 @@ export default async function StudentsPage({
             ),
           },
         ]}
+        rowHref={(row) => `/students/${String(row.id)}`}
         empty="No students match this search."
       />
       <Pagination

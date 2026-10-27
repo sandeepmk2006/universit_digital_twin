@@ -15,6 +15,7 @@ export default async function GrievancesPage() {
       />
       <DataTable
         rows={rowsFrom(data)}
+        rowHref={(row) => `/grievances/${String(row.id)}`}
         columns={[
           { key: "subject", label: "Subject" },
           { key: "category", label: "Category" },

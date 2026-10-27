@@ -141,12 +141,9 @@ export default async function Overview() {
             <div className="mt-2 text-2xl font-semibold tabular">{value ?? "—"}</div>
           </div>
         ))}
-        <Link
-          href="/allocation"
-          className="border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950"
-        >
-          <div className="text-xs text-indigo-700 dark:text-indigo-300">Unassigned slots</div>
-          <div className="mt-2 text-2xl font-semibold tabular text-indigo-700 dark:text-indigo-300">
+        <Link href="/allocation" className="border border-indigo-200 bg-indigo-50 p-4">
+          <div className="text-xs text-indigo-700">Unassigned slots</div>
+          <div className="mt-2 text-2xl font-semibold tabular text-indigo-700">
             {String(kpi?.unassigned_slots ?? "—")}
           </div>
         </Link>
