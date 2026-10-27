@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export async function queryTable(
@@ -8,23 +9,23 @@ export async function queryTable(
   search?: string,
 ) {
   const supabase = await createClient();
-  let query = supabase.from(table).select(columns, { count: "exact" });
+  let query = supabase.from(table).select(columns, { count: "estimated" });
   if (search) query = query.ilike("name", `%${search}%`);
   const from = (page - 1) * pageSize;
   const { data, count, error } = await query.range(from, from + pageSize - 1);
   return { data: data ?? [], count: count ?? 0, error };
 }
 
-export async function getProfile() {
+// Cached per request: the layout and the page both need the profile.
+export const getProfile = cache(async () => {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims.sub;
+  if (!userId) return null;
   const { data } = await supabase
     .from("profiles")
     .select("id,full_name,email,role")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
   return data;
-}
+});

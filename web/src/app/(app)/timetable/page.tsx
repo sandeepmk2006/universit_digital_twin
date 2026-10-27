@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, PageHeader } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
@@ -20,7 +21,9 @@ export default async function TimetablePage({
   const supabase = await createClient();
   let query = supabase
     .from("v_timetable")
-    .select("*")
+    .select(
+      "id,weekday,starts_at,ends_at,room_id,room,section_id,course_code,course_title,section,department,semester,faculty,enrolled,is_current",
+    )
     .eq("is_current", true)
     .order("weekday")
     .order("starts_at");
@@ -69,7 +72,7 @@ export default async function TimetablePage({
       </form>
       <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
         <table className="w-full min-w-[900px] table-fixed text-left text-xs">
-          <thead className="border-b border-[var(--line)] bg-zinc-50 dark:bg-zinc-900">
+          <thead className="border-b border-[var(--line)] bg-[#fafafa]">
             <tr>
               <th className="w-20 px-3 py-3 font-medium text-[var(--muted)]">Time</th>
               {days.map((day) => (
@@ -92,25 +95,30 @@ export default async function TimetablePage({
                   return (
                     <td key={dayIndex} className="border-l border-[var(--line)] p-2 align-top">
                       {entry ? (
-                        <div
-                          className={
-                            entry.room
-                              ? "border-l-2 border-indigo-500 pl-2"
-                              : "border-l-2 border-amber-500 bg-amber-50 pl-2 dark:bg-amber-950/30"
-                          }
+                        <Link
+                          href={`/timetable/${String(entry.id)}`}
+                          className="block cursor-pointer"
                         >
-                          <div className="font-medium">
-                            {String(entry.course_code ?? "Unassigned")}
+                          <div
+                            className={
+                              entry.room
+                                ? "border-l-2 border-indigo-500 pl-2"
+                                : "border-l-2 border-amber-500 bg-amber-50 pl-2"
+                            }
+                          >
+                            <div className="font-medium">
+                              {String(entry.course_code ?? "Unassigned")}
+                            </div>
+                            <div className="text-[var(--muted)]">{String(entry.section ?? "")}</div>
+                            <div className="mt-1">
+                              {entry.room ? (
+                                String(entry.room)
+                              ) : (
+                                <Badge tone="warn">Unassigned room</Badge>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-[var(--muted)]">{String(entry.section ?? "")}</div>
-                          <div className="mt-1">
-                            {entry.room ? (
-                              String(entry.room)
-                            ) : (
-                              <Badge tone="warn">Unassigned room</Badge>
-                            )}
-                          </div>
-                        </div>
+                        </Link>
                       ) : (
                         <span className="text-[var(--muted)]">—</span>
                       )}

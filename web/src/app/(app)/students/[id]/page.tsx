@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
-import { formatDate, formatPercent } from "@/lib/format";
+import { formatDate, formatPercent, formatStatus } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -18,32 +19,78 @@ function explainFactors(value: unknown) {
 export default async function StudentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [student, enrollments, prediction, recommendations] = await Promise.all([
-    supabase.from("v_student_directory").select("*").eq("id", id).single(),
-    supabase
-      .from("enrollments")
-      .select(
-        "id,marks,grade,grade_point,attendance_pct,course_sections(section,courses(code,title))",
-      )
-      .eq("student_id", id),
-    supabase
-      .from("performance_predictions")
-      .select("predicted_gpa,risk_level,factors,created_at")
-      .eq("student_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("recommendations")
-      .select("id,kind,score,payload")
-      .eq("student_id", id)
-      .order("created_at", { ascending: false })
-      .limit(5),
-  ]);
+  const [student, enrollments, prediction, recommendations, studentRelations, attendance, marks] =
+    await Promise.all([
+      supabase.from("v_student_directory").select("*").eq("id", id).single(),
+      supabase
+        .from("enrollments")
+        .select(
+          "id,grade,grade_point,section_id,course_sections(id,section,academic_terms(name,is_current),courses(code,title,credits))",
+        )
+        .eq("student_id", id),
+      supabase
+        .from("performance_predictions")
+        .select("predicted_gpa,risk_level,factors,created_at")
+        .eq("student_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from("recommendations")
+        .select("id,kind,score,payload")
+        .eq("student_id", id)
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("students")
+        .select("mentor_id,faculty(id,full_name,employee_no)")
+        .eq("id", id)
+        .single(),
+      supabase.from("v_student_attendance").select("section_id,percentage").eq("student_id", id),
+      supabase
+        .from("marks")
+        .select("obtained,exams(section_id,max_marks,weightage)")
+        .eq("student_id", id),
+    ]);
   if (!student.data) notFound();
   const s = student.data as Row;
+  const mentor = Array.isArray(studentRelations.data?.faculty)
+    ? studentRelations.data.faculty[0]
+    : studentRelations.data?.faculty;
+  const attendanceBySection = new Map(
+    rowsFrom(attendance.data).map((r) => [String(r.section_id), Number(r.percentage)]),
+  );
+  // Weighted score so far, as a percentage of the assessments already held.
+  const scoreBySection = new Map<string, { earned: number; weight: number }>();
+  for (const mark of rowsFrom(marks.data)) {
+    const exam = mark.exams as { section_id: string; max_marks: number; weightage: number } | null;
+    if (!exam) continue;
+    const entry = scoreBySection.get(exam.section_id) ?? { earned: 0, weight: 0 };
+    entry.earned += (Number(mark.obtained) / Number(exam.max_marks)) * Number(exam.weightage);
+    entry.weight += Number(exam.weightage);
+    scoreBySection.set(exam.section_id, entry);
+  }
+  const courseRows = rowsFrom(enrollments.data)
+    .map((r) => {
+      const section = r.course_sections as {
+        academic_terms?: { name: string; is_current: boolean };
+      } | null;
+      const score = scoreBySection.get(String(r.section_id));
+      return {
+        ...r,
+        id: r.section_id,
+        term: section?.academic_terms?.name ?? "—",
+        is_current: section?.academic_terms?.is_current ?? false,
+        attendance_pct: attendanceBySection.get(String(r.section_id)) ?? null,
+        score_pct: score && score.weight ? (score.earned / score.weight) * 100 : null,
+      };
+    })
+    .sort((a, b) => Number(b.is_current) - Number(a.is_current) || a.term.localeCompare(b.term));
   const courseName = (row: Row) => {
-    const section = row.course_sections as { courses?: { code?: string; title?: string } } | null;
+    const section = row.course_sections as {
+      id?: string;
+      courses?: { code?: string; title?: string };
+    } | null;
     return `${section?.courses?.code ?? "—"} · ${section?.courses?.title ?? "Untitled"}`;
   };
   return (
@@ -52,6 +99,14 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
         title={String(s.full_name)}
         description={`${String(s.roll_no)} · ${String(s.program_code)} · ${String(s.department)}`}
       />
+      {mentor ? (
+        <p className="mb-4 text-sm text-[var(--muted)]">
+          Mentor:{" "}
+          <Link className="text-indigo-600 hover:underline" href={`/faculty/${String(mentor.id)}`}>
+            {String(mentor.full_name)}
+          </Link>
+        </p>
+      ) : null}
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {[
           ["Roll no.", s.roll_no],
@@ -70,9 +125,11 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
         <h2 className="font-medium">Course attendance and marks</h2>
         <div className="mt-4">
           <DataTable
-            rows={rowsFrom(enrollments.data)}
+            rows={courseRows}
+            rowHref={(r) => `/courses/${String(r.id)}`}
             columns={[
               { key: "course_sections", label: "Course", render: courseName },
+              { key: "term", label: "Term" },
               {
                 key: "attendance_pct",
                 label: "Attendance",
@@ -82,7 +139,11 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
                   </span>
                 ),
               },
-              { key: "marks", label: "Marks" },
+              {
+                key: "score_pct",
+                label: "Score so far",
+                render: (r) => formatPercent(r.score_pct as number | null),
+              },
               { key: "grade", label: "Grade" },
               { key: "grade_point", label: "Grade point" },
             ]}
@@ -125,13 +186,29 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
           <DataTable
             rows={rowsFrom(recommendations.data)}
             columns={[
-              { key: "kind", label: "Type" },
-              { key: "score", label: "Score" },
+              { key: "kind", label: "Type", render: (r) => formatStatus(r.kind) },
               {
                 key: "payload",
                 label: "Recommendation",
-                render: (r) =>
-                  typeof r.payload === "string" ? r.payload : String(JSON.stringify(r.payload)),
+                render: (r) => {
+                  const p = (r.payload ?? {}) as Record<string, unknown>;
+                  const head = p.code
+                    ? `${String(p.code)} · ${String(p.title)}`
+                    : String(p.skill ?? "—");
+                  return (
+                    <div>
+                      <div>{head}</div>
+                      {p.reason ? (
+                        <div className="text-xs text-[var(--muted)]">{String(p.reason)}</div>
+                      ) : null}
+                    </div>
+                  );
+                },
+              },
+              {
+                key: "score",
+                label: "Score",
+                render: (r) => (r.score === null ? "—" : Number(r.score).toFixed(2)),
               },
             ]}
             empty="No recommendations are available."

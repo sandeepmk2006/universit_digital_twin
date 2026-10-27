@@ -106,7 +106,7 @@ export function Shell({
                       key={href}
                       href={href}
                       onClick={() => setOpen(false)}
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "text-[var(--muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700" : "text-[var(--muted)] hover:bg-zinc-100"}`}
                     >
                       <Icon size={15} />
                       {label}

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { formatLabel } from "@/lib/format";
 
 export function Badge({
   children,
@@ -10,10 +11,10 @@ export function Badge({
   tone?: "neutral" | "good" | "warn" | "bad";
 }) {
   const colors = {
-    neutral: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-    good: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    warn: "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-    bad: "bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+    neutral: "bg-zinc-100 text-zinc-700",
+    good: "bg-emerald-50 text-emerald-700",
+    warn: "bg-amber-50 text-amber-700",
+    bad: "bg-rose-50 text-rose-700",
   };
   return (
     <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${colors[tone]}`}>
@@ -51,16 +52,18 @@ export function DataTable({
   columns,
   rows,
   empty = "No records match this view.",
+  rowHref,
 }: {
   columns: { key: string; label: string; render?: (row: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   empty?: string;
+  rowHref?: (row: Record<string, unknown>) => string | undefined;
 }) {
   if (!rows.length) return <EmptyState text={empty} />;
   return (
     <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-[var(--line)] bg-zinc-50/70 text-xs text-[var(--muted)] dark:bg-zinc-900/70">
+        <thead className="border-b border-[var(--line)] bg-[#fafafa] text-xs text-[var(--muted)]">
           <tr>
             {columns.map((c) => (
               <th className="px-4 py-3 font-medium" key={c.key}>
@@ -70,15 +73,33 @@ export function DataTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {rows.map((row, i) => (
-            <tr key={String(row.id ?? i)} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-900/60">
-              {columns.map((c) => (
-                <td className="px-4 py-3" key={c.key}>
-                  {c.render ? c.render(row) : String(row[c.key] ?? "—")}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const href = rowHref?.(row);
+            return (
+              <tr
+                key={String(row.id ?? i)}
+                className={`relative hover:bg-[#f4f4f5] ${href ? "cursor-pointer" : ""}`}
+              >
+                {columns.map((c, index) => (
+                  <td className="px-4 py-3" key={`${c.key}-${index}`}>
+                    {href && index === 0 ? (
+                      // One link per row, stretched over the whole row, so cells never nest anchors.
+                      <Link
+                        className="focus-ring after:absolute after:inset-0 after:content-['']"
+                        href={href}
+                      >
+                        {c.render ? c.render(row) : formatLabel(row[c.key])}
+                      </Link>
+                    ) : c.render ? (
+                      c.render(row)
+                    ) : (
+                      formatLabel(row[c.key])
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

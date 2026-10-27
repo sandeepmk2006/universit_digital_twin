@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/components/ui";
-import { formatDate, formatMoney, formatStatus, formatTime } from "@/lib/format";
+import { formatDate, formatLabel, formatMoney, formatStatus, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -25,12 +25,13 @@ const config: Record<string, ModuleConfig> = {
       { key: "faculty", label: "Faculty" },
       { key: "enrolled", label: "Enrolled" },
     ],
+    select: "id,code,title,section,semester,faculty,enrolled,is_current",
   },
   examinations: {
     table: "exams",
     title: "Examinations",
     searchColumn: "kind",
-    select: "*,course_sections(courses(code,title))",
+    select: "id,section_id,kind,max_marks,weightage,held_on,course_sections(courses(code,title))",
     columns: [
       { key: "kind", label: "Kind" },
       { key: "course_sections", label: "Course" },
@@ -48,6 +49,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "gender", label: "Gender" },
       { key: "capacity", label: "Capacity" },
     ],
+    select: "id,name,gender,capacity",
   },
   library: {
     table: "v_library_loans",
@@ -61,6 +63,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "fine_amount", label: "Fine", format: "money" },
       { key: "state", label: "Status", format: "status" },
     ],
+    select: "id,title,barcode,borrower,due_on,fine_amount,state",
   },
   transport: {
     table: "buses",
@@ -71,6 +74,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "capacity", label: "Capacity" },
       { key: "driver_name", label: "Driver" },
     ],
+    select: "id,registration,capacity,driver_name",
   },
   events: {
     table: "events",
@@ -81,6 +85,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "starts_at", label: "Starts", format: "date" },
       { key: "capacity", label: "Capacity" },
     ],
+    select: "id,title,starts_at,capacity,organiser_club_id",
   },
   clubs: {
     table: "clubs",
@@ -91,6 +96,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "category", label: "Category" },
       { key: "description", label: "Description" },
     ],
+    select: "id,name,category,description",
   },
   sports: {
     table: "sports_facilities",
@@ -101,6 +107,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "sport", label: "Sport" },
       { key: "capacity", label: "Capacity" },
     ],
+    select: "id,name,sport,capacity",
   },
   health: {
     table: "medicine_stock",
@@ -111,12 +118,13 @@ const config: Record<string, ModuleConfig> = {
       { key: "quantity", label: "Quantity" },
       { key: "expires_on", label: "Expires", format: "date" },
     ],
+    select: "id,name,quantity,expires_on",
   },
   visitors: {
     table: "visitors",
     title: "Visitors",
     searchColumn: "full_name",
-    select: "*,profiles(full_name)",
+    select: "id,full_name,purpose,checked_in_at,host_id,profiles(full_name)",
     columns: [
       { key: "full_name", label: "Visitor" },
       { key: "purpose", label: "Purpose" },
@@ -134,6 +142,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "status", label: "Status", format: "status" },
       { key: "applied_at", label: "Applied", format: "date" },
     ],
+    select: "id,full_name,email,status,applied_at,program_id",
   },
   research: {
     table: "research_projects",
@@ -145,6 +154,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "status", label: "Status", format: "status" },
       { key: "starts_on", label: "Starts", format: "date" },
     ],
+    select: "id,title,funding_agency,status,starts_on,ends_on,lead_faculty_id",
   },
   alumni: {
     table: "alumni",
@@ -156,6 +166,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "current_company", label: "Company" },
       { key: "city", label: "City" },
     ],
+    select: "id,full_name,graduation_year,current_company,city,student_id",
   },
   finance: {
     table: "v_invoice_ledger",
@@ -168,6 +179,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "due_on", label: "Due", format: "date" },
       { key: "status", label: "Status", format: "status" },
     ],
+    select: "id,student_id,roll_no,full_name,amount,due_on,status,paid,scholarship",
   },
   inventory: {
     table: "inventory_items",
@@ -179,6 +191,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "category", label: "Category" },
       { key: "quantity", label: "Quantity" },
     ],
+    select: "id,sku,name,category,quantity,unit,room_id",
   },
   feedback: {
     table: "feedback_forms",
@@ -189,6 +202,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "opens_at", label: "Opens", format: "date" },
       { key: "closes_at", label: "Closes", format: "date" },
     ],
+    select: "id,title,opens_at,closes_at,section_id",
   },
   attendance: {
     table: "v_student_directory",
@@ -200,6 +214,7 @@ const config: Record<string, ModuleConfig> = {
       { key: "attendance_pct", label: "Attendance" },
       { key: "risk_level", label: "Risk", format: "status" },
     ],
+    select: "id,full_name,department,attendance_pct,risk_level",
   },
 };
 
@@ -217,7 +232,7 @@ function cellValue(row: Row, column: ModuleConfig["columns"][number]) {
         {formatStatus(value)}
       </Badge>
     );
-  return String(value ?? "—");
+  return formatLabel(value);
 }
 
 export default async function ModulePage({
@@ -237,7 +252,9 @@ export default async function ModulePage({
   const supabase = await createClient();
   let query = supabase
     .from(item.table)
-    .select(item.select ?? "*", { count: "exact" })
+    .select(item.select ?? item.columns.map((column) => column.key).join(","), {
+      count: "estimated",
+    })
     .range((page - 1) * pageSize, page * pageSize - 1);
   if (q) query = query.ilike(item.searchColumn, `%${q}%`);
   if (module === "courses") query = query.eq("is_current", true);
@@ -257,6 +274,7 @@ export default async function ModulePage({
       </form>
       <DataTable
         rows={rowsFrom(data)}
+        rowHref={(row) => `/${module}/${String(row.id)}`}
         columns={item.columns.map((column) => ({
           ...column,
           render: (row: Row) => cellValue(row, column),
