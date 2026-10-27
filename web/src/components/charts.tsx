@@ -1,0 +1,4 @@
+"use client";
+import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+export function AttendanceChart({ data }: { data: { name: string; value: number }[] }) { return <div className="h-64"><ResponsiveContainer><BarChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7"/><XAxis dataKey="name" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}}/><Tooltip/><Bar dataKey="value" fill="#4f46e5" radius={[2,2,0,0]}/></BarChart></ResponsiveContainer></div>; }
+export function RiskChart({ data }: { data: { name: string; value: number }[] }) { const colors = ["#10b981","#f59e0b","#f43f5e"]; return <div className="h-56"><ResponsiveContainer><PieChart><Pie data={data} dataKey="value" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={3}>{data.map((_, i) => <Cell key={i} fill={colors[i]}/>)}</Pie><Tooltip/></PieChart></ResponsiveContainer></div>; }
