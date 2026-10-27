@@ -3,6 +3,7 @@ import { Badge, PageHeader } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Row } from "@/types/db";
+import { requireStaff } from "@/lib/data";
 
 const periods = ["09:00", "10:00", "11:15", "12:15", "14:00", "15:00", "16:00"];
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -17,6 +18,7 @@ export default async function TimetablePage({
     section?: string;
   }>;
 }) {
+  await requireStaff();
   const params = await searchParams;
   const supabase = await createClient();
   let query = supabase

@@ -3,8 +3,10 @@ import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { formatDate, formatStatus } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Row } from "@/types/db";
+import { requireStaff } from "@/lib/data";
 
 export default async function PlacementsPage() {
+  await requireStaff();
   const { data } = await (await createClient())
     .from("v_placement_funnel")
     .select("id,company,role_title,package_lpa,drive_date,status,applied,progressed,offers")

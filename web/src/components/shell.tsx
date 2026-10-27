@@ -68,18 +68,49 @@ const groups = [
     ],
   ],
 ] as const;
+type NavLink = readonly [string, string, typeof Users];
+type NavGroup = readonly [string, readonly NavLink[]];
+
 export function Shell({
   profile,
   term,
+  studentId,
   children,
 }: {
   profile: Profile | null;
   term: { name: string; week: number; total: number } | null;
+  studentId: string | null;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
   const isStudent = profile?.role === "student";
+
+  // Students get a personal menu, not the institution-wide directory.
+  const studentGroups: NavGroup[] = [
+    [
+      "You",
+      [
+        ["Overview", "/", LayoutDashboard],
+        ...(studentId
+          ? ([["My record", `/students/${studentId}`, GraduationCap]] as NavLink[])
+          : []),
+        ["Grievances", "/grievances", ShieldAlert],
+        ["Feedback", "/feedback", MessageSquare],
+        ["Assistant", "/assistant", MessageSquare],
+      ],
+    ],
+    [
+      "Campus",
+      [
+        ["Library", "/library", BookOpen],
+        ["Events", "/events", CalendarDays],
+        ["Clubs", "/clubs", Users],
+        ["Sports", "/sports", LayoutDashboard],
+      ],
+    ],
+  ];
+  const nav: readonly NavGroup[] = isStudent ? studentGroups : groups;
   return (
     <div className="min-h-screen md:flex">
       <aside
@@ -95,26 +126,24 @@ export function Shell({
           </button>
         </div>
         <nav className="space-y-5">
-          {groups
-            .filter(([group]) => !isStudent || !["Administration", "Intelligence"].includes(group))
-            .map(([group, links]) => (
-              <div key={group}>
-                <p className="mb-2 px-2 text-[11px] font-semibold text-[var(--muted)]">{group}</p>
-                <div className="space-y-0.5">
-                  {links.map(([label, href, Icon]) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      onClick={() => setOpen(false)}
-                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700" : "text-[var(--muted)] hover:bg-zinc-100"}`}
-                    >
-                      <Icon size={15} />
-                      {label}
-                    </Link>
-                  ))}
-                </div>
+          {nav.map(([group, links]) => (
+            <div key={group}>
+              <p className="mb-2 px-2 text-[11px] font-semibold text-[var(--muted)]">{group}</p>
+              <div className="space-y-0.5">
+                {links.map(([label, href, Icon]) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setOpen(false)}
+                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700" : "text-[var(--muted)] hover:bg-zinc-100"}`}
+                  >
+                    <Icon size={15} />
+                    {label}
+                  </Link>
+                ))}
               </div>
-            ))}
+            </div>
+          ))}
         </nav>
       </aside>
       <div className="min-w-0 flex-1">

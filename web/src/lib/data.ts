@@ -1,5 +1,37 @@
 import { cache } from "react";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+
+// Non-teaching and teaching staff see institution-wide records; students and
+// alumni see only their own. The database enforces this with RLS; these helpers
+// keep students out of staff-facing pages so they never land on an empty directory.
+export const STAFF_ROLES = new Set([
+  "admin",
+  "faculty",
+  "hod",
+  "warden",
+  "placement_officer",
+  "librarian",
+  "transport_manager",
+  "doctor",
+  "security",
+  "accountant",
+]);
+
+// Generic modules a student is allowed to open: catalogues, RLS-scoped records,
+// and "courses" so they can reach the detail of a course they're enrolled in.
+export const STUDENT_MODULES = new Set([
+  "library",
+  "events",
+  "clubs",
+  "sports",
+  "feedback",
+  "courses",
+]);
+
+export function isStaff(role: string | null | undefined) {
+  return !!role && STAFF_ROLES.has(role);
+}
 
 export async function queryTable(
   table: string,
@@ -29,6 +61,23 @@ export const getProfile = cache(async () => {
     .single();
   return data;
 });
+
+// The caller's student row id, if they are a student.
+export const getMyStudentId = cache(async () => {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const uid = auth?.claims.sub;
+  if (!uid) return null;
+  const { data } = await supabase.from("students").select("id").eq("profile_id", uid).maybeSingle();
+  return data?.id ? String(data.id) : null;
+});
+
+// Send students away from staff-only pages. Call at the top of such a page.
+export async function requireStaff() {
+  const profile = await getProfile();
+  if (!isStaff(profile?.role)) redirect("/");
+  return profile;
+}
 
 // The academic term in progress, with the teaching week, for the header.
 export const getCurrentTerm = cache(async () => {

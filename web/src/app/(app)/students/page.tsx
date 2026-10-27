@@ -2,6 +2,7 @@ import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/component
 import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Row } from "@/types/db";
+import { requireStaff } from "@/lib/data";
 
 function riskTone(value: unknown) {
   return value === "high" ? "bad" : value === "medium" ? "warn" : "good";
@@ -12,6 +13,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string; department?: string; semester?: string }>;
 }) {
+  await requireStaff();
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const q = params.q?.trim() ?? "";
