@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
-import { formatDate, formatMoney, formatStatus, formatTime } from "@/lib/format";
+import {
+  formatDate,
+  formatLabel,
+  formatMoney,
+  formatStatus,
+  formatTime,
+  formatWeekday,
+  isUuid,
+} from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -131,18 +139,14 @@ function formatValue(key: string, value: unknown) {
     return formatMoney(value as number | string);
   if (key === "status" || key === "category" || key === "kind" || key === "stage")
     return formatStatus(value);
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "object") {
-    const nested = value as Row;
-    return String(
-      nested.full_name ?? nested.name ?? nested.title ?? nested.code ?? nested.barcode ?? "—",
-    );
-  }
-  return String(value);
+  if (key === "weekday") return formatWeekday(value);
+  return formatLabel(value);
 }
 
 function displayFields(row: Row) {
-  return Object.entries(row).filter(([key, value]) => !isIdKey(key) && value !== undefined);
+  return Object.entries(row).filter(
+    ([key, value]) => !isIdKey(key) && value !== undefined && !isUuid(value),
+  );
 }
 
 function studentLink(row: Row) {
@@ -155,6 +159,31 @@ function studentLink(row: Row) {
   );
 }
 
+function studentName(row: Row) {
+  return row.id ? String(row.full_name ?? row.roll_no) : "Hidden (another student)";
+}
+
+function recordTitle(module: string, row: Row) {
+  switch (module) {
+    case "courses":
+    case "examinations":
+    case "timetable":
+      return [formatLabel(row.courses ?? row.course_sections), row.kind && formatStatus(row.kind)]
+        .filter(Boolean)
+        .join(" · ");
+    case "library":
+      return formatLabel(row.book_copies);
+    case "finance":
+      return `Invoice · ${formatLabel(row.students)}`;
+    case "placements":
+      return `${formatLabel(row.companies)} · ${String(row.role_title)}`;
+    default:
+      return formatLabel(
+        row.full_name ?? row.title ?? row.name ?? row.registration ?? row.subject ?? row.sku,
+      );
+  }
+}
+
 function Related({
   title,
   rows,
@@ -164,7 +193,7 @@ function Related({
   title: string;
   rows: Row[];
   columns: { key: string; label: string; render?: (row: Row) => React.ReactNode }[];
-  href?: (row: Row) => string;
+  href?: (row: Row) => string | undefined;
 }) {
   return (
     <section className="mt-4 border border-[var(--line)] bg-[var(--panel)] p-5">
@@ -212,18 +241,18 @@ export default async function GenericDetail({
         title="Enrolled students"
         rows={rowsFrom(enrollments.data).map((r) => (r.students ?? {}) as Row)}
         columns={[
-          { key: "full_name", label: "Student", render: studentLink },
+          { key: "full_name", label: "Student", render: studentName },
           { key: "roll_no", label: "Roll no." },
           { key: "status", label: "Status" },
         ]}
-        href={(r) => `/students/${String(r.id)}`}
+        href={(r) => (r.id ? `/students/${String(r.id)}` : undefined)}
       />,
       <Related
         key="slots"
         title="Timetable slots"
         rows={rowsFrom(slots.data)}
         columns={[
-          { key: "weekday", label: "Day" },
+          { key: "weekday", label: "Day", render: (r) => formatWeekday(r.weekday) },
           { key: "starts_at", label: "Starts", render: (r) => formatTime(String(r.starts_at)) },
           { key: "ends_at", label: "Ends", render: (r) => formatTime(String(r.ends_at)) },
           { key: "rooms", label: "Room" },
@@ -281,10 +310,10 @@ export default async function GenericDetail({
         title="Mentees"
         rows={rowsFrom(mentees.data)}
         columns={[
-          { key: "full_name", label: "Student", render: studentLink },
+          { key: "full_name", label: "Student", render: studentName },
           { key: "roll_no", label: "Roll no." },
         ]}
-        href={(r) => `/students/${String(r.id)}`}
+        href={(r) => (r.id ? `/students/${String(r.id)}` : undefined)}
       />,
     );
   } else if (module === "hostel") {
@@ -321,7 +350,6 @@ export default async function GenericDetail({
                 ),
           },
         ]}
-        href={(r) => `/hostel/${String(r.id)}`}
       />,
     );
   } else if (module === "library") {
@@ -354,7 +382,6 @@ export default async function GenericDetail({
           { key: "name", label: "Name" },
           { key: "pickup_at", label: "Pickup", render: (r) => formatTime(String(r.pickup_at)) },
         ]}
-        href={(r) => `/transport/${String(r.id)}`}
       />,
     );
   } else if (module === "events") {
@@ -388,11 +415,11 @@ export default async function GenericDetail({
           joined_on: r.joined_on,
         }))}
         columns={[
-          { key: "full_name", label: "Student", render: studentLink },
+          { key: "full_name", label: "Student", render: studentName },
           { key: "roll_no", label: "Roll no." },
           { key: "position", label: "Position" },
         ]}
-        href={(r) => `/students/${String(r.id)}`}
+        href={(r) => (r.id ? `/students/${String(r.id)}` : undefined)}
       />,
     );
   } else if (module === "placements") {
@@ -412,7 +439,7 @@ export default async function GenericDetail({
           offer: r.placement_offers,
         }))}
         columns={[
-          { key: "full_name", label: "Student", render: studentLink },
+          { key: "full_name", label: "Student", render: studentName },
           { key: "roll_no", label: "Roll no." },
           {
             key: "stage",
@@ -425,7 +452,7 @@ export default async function GenericDetail({
           },
           { key: "offer", label: "Offer" },
         ]}
-        href={(r) => `/students/${String(r.id)}`}
+        href={(r) => (r.id ? `/students/${String(r.id)}` : undefined)}
       />,
     );
   } else if (module === "finance") {
@@ -446,7 +473,6 @@ export default async function GenericDetail({
           { key: "method", label: "Method" },
           { key: "paid_at", label: "Paid on", render: (r) => formatDate(String(r.paid_at)) },
         ]}
-        href={(r) => `/finance/${String(r.id)}`}
       />,
       <Related
         key="scholarships"
@@ -456,7 +482,6 @@ export default async function GenericDetail({
           { key: "name", label: "Scholarship" },
           { key: "amount", label: "Amount", render: (r) => formatMoney(r.amount as number) },
         ]}
-        href={(r) => `/finance/${String(r.id)}`}
       />,
     );
   } else if (module === "grievances") {
@@ -475,7 +500,6 @@ export default async function GenericDetail({
           { key: "profiles", label: "Author" },
           { key: "note", label: "Update" },
         ]}
-        href={(r) => `/grievances/${String(r.id)}`}
       />,
     );
   } else if (module === "research") {
@@ -493,7 +517,6 @@ export default async function GenericDetail({
           { key: "venue", label: "Venue" },
           { key: "year", label: "Year" },
         ]}
-        href={(r) => `/research/${String(r.id)}`}
       />,
     );
   } else if (module === "inventory") {
@@ -512,7 +535,6 @@ export default async function GenericDetail({
           { key: "reason", label: "Reason" },
           { key: "moved_at", label: "Moved", render: (r) => formatDate(String(r.moved_at)) },
         ]}
-        href={(r) => `/inventory/${String(r.id)}`}
       />,
     );
   } else if (module === "feedback") {
@@ -548,16 +570,7 @@ export default async function GenericDetail({
     );
   }
 
-  const title = String(
-    row.full_name ??
-      row.title ??
-      row.name ??
-      row.registration ??
-      row.subject ??
-      row.sku ??
-      row.code ??
-      row.id,
-  );
+  const title = recordTitle(module, row);
   return (
     <>
       <div className="mb-3 text-sm text-[var(--muted)]">

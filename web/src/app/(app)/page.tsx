@@ -21,12 +21,19 @@ async function StudentOverview({ email }: { email: string }) {
   if (!student.data)
     return <PageHeader title="Overview" description="Your student summary is not available yet." />;
   const row = student.data as Row;
-  const weekday = new Date().getDay();
+  // Postgres weekdays are Mon=1..Sat=6; JS getDay() is Sun=0.
+  const weekday = new Date().getDay() || 7;
+  const { data: enrolled } = await supabase
+    .from("enrollments")
+    .select("section_id")
+    .eq("student_id", String(row.id));
+  const sectionIds = rowsFrom(enrolled).map((r) => String(r.section_id));
   const [timetable, invoices] = await Promise.all([
     supabase
       .from("v_timetable")
-      .select("*")
-      .eq("section_id", row.id)
+      .select("id,section_id,starts_at,ends_at,course_code,course_title,room")
+      .in("section_id", sectionIds)
+      .eq("is_current", true)
       .eq("weekday", weekday)
       .order("starts_at"),
     supabase
@@ -67,6 +74,7 @@ async function StudentOverview({ email }: { email: string }) {
           <h2 className="font-medium">Today’s timetable</h2>
           <DataTable
             rows={(timetable.data ?? []) as Row[]}
+            rowHref={(r) => `/courses/${String(r.section_id)}`}
             columns={[
               {
                 key: "starts_at",
@@ -74,7 +82,11 @@ async function StudentOverview({ email }: { email: string }) {
                 render: (r) =>
                   `${formatTime(String(r.starts_at))}–${formatTime(String(r.ends_at))}`,
               },
-              { key: "course_code", label: "Course" },
+              {
+                key: "course_code",
+                label: "Course",
+                render: (r) => `${String(r.course_code)} · ${String(r.course_title)}`,
+              },
               { key: "room", label: "Room", render: (r) => String(r.room ?? "Unassigned") },
             ]}
             empty="No classes are scheduled today."
@@ -115,7 +127,7 @@ export default async function Overview() {
       .order("attendance_pct", { ascending: true }),
     supabase
       .from("performance_predictions")
-      .select("id,predicted_gpa,risk_level,students(full_name)")
+      .select("id,student_id,predicted_gpa,risk_level,students(full_name)")
       .eq("risk_level", "high")
       .order("created_at", { ascending: false })
       .limit(5),
@@ -165,6 +177,7 @@ export default async function Overview() {
           <div className="mt-4">
             <DataTable
               rows={rowsFrom(predictions)}
+              rowHref={(r) => `/students/${String(r.student_id)}`}
               columns={[
                 {
                   key: "students",

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/components/ui";
-import { formatDate, formatMoney, formatStatus, formatTime } from "@/lib/format";
+import { formatDate, formatLabel, formatMoney, formatStatus, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -232,7 +232,7 @@ function cellValue(row: Row, column: ModuleConfig["columns"][number]) {
         {formatStatus(value)}
       </Badge>
     );
-  return String(value ?? "—");
+  return formatLabel(value);
 }
 
 export default async function ModulePage({

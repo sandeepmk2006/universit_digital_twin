@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { formatLabel } from "@/lib/format";
 
 export function Badge({
   children,
@@ -56,7 +57,7 @@ export function DataTable({
   columns: { key: string; label: string; render?: (row: Record<string, unknown>) => ReactNode }[];
   rows: Record<string, unknown>[];
   empty?: string;
-  rowHref?: (row: Record<string, unknown>) => string;
+  rowHref?: (row: Record<string, unknown>) => string | undefined;
 }) {
   if (!rows.length) return <EmptyState text={empty} />;
   return (
@@ -72,23 +73,33 @@ export function DataTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {rows.map((row, i) => (
-            <tr key={String(row.id ?? i)} className="group hover:bg-[#f4f4f5]">
-              {columns.map((c) => (
-                <td className="px-4 py-3" key={c.key}>
-                  {rowHref ? (
-                    <Link className="block cursor-pointer focus-ring" href={rowHref(row)}>
-                      {c.render ? c.render(row) : String(row[c.key] ?? "—")}
-                    </Link>
-                  ) : c.render ? (
-                    c.render(row)
-                  ) : (
-                    String(row[c.key] ?? "—")
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            const href = rowHref?.(row);
+            return (
+              <tr
+                key={String(row.id ?? i)}
+                className={`relative hover:bg-[#f4f4f5] ${href ? "cursor-pointer" : ""}`}
+              >
+                {columns.map((c, index) => (
+                  <td className="px-4 py-3" key={`${c.key}-${index}`}>
+                    {href && index === 0 ? (
+                      // One link per row, stretched over the whole row, so cells never nest anchors.
+                      <Link
+                        className="focus-ring after:absolute after:inset-0 after:content-['']"
+                        href={href}
+                      >
+                        {c.render ? c.render(row) : formatLabel(row[c.key])}
+                      </Link>
+                    ) : c.render ? (
+                      c.render(row)
+                    ) : (
+                      formatLabel(row[c.key])
+                    )}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

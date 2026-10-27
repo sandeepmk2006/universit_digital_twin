@@ -33,3 +33,35 @@ export function formatPercent(value: number | string | null | undefined) {
 export function formatStatus(value: unknown) {
   return String(value ?? "unknown").replace(/_/g, " ");
 }
+
+const WEEKDAYS = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+export function formatWeekday(value: unknown) {
+  return WEEKDAYS[Number(value)] ?? "—";
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(value: unknown) {
+  return typeof value === "string" && UUID.test(value);
+}
+
+/** Human label for a value that may be a joined PostgREST object or array of them. */
+export function formatLabel(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value)) return value.length ? value.map(formatLabel).join(", ") : "—";
+  if (typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    if (row.courses)
+      return formatLabel(row.courses) + (row.section ? ` · ${String(row.section)}` : "");
+    if (row.code && row.title) return `${String(row.code)} · ${String(row.title)}`;
+    if (row.books) return formatLabel(row.books);
+    if (row.package_lpa !== undefined) return `${String(row.package_lpa)} LPA`;
+    if (row.text) return String(row.text);
+    const label =
+      row.full_name ?? row.name ?? row.title ?? row.code ?? row.registration ?? row.barcode;
+    return label === undefined || label === null ? "—" : String(label);
+  }
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return isUuid(value) ? "—" : String(value);
+}
