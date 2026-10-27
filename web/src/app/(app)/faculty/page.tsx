@@ -1,3 +1,53 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable, PageHeader, Badge } from "@/components/ui";
-export default async function FacultyPage() { const supabase = await createClient(); const {data} = await supabase.from("v_faculty_workload").select("*").order("weekly_hours",{ascending:false}); return <><PageHeader title="Faculty" description="Teaching capacity and current timetable load."/><DataTable rows={(data ?? []) as unknown as Record<string,unknown>[]} columns={[{key:"full_name",label:"Faculty"},{key:"department_id",label:"Department"},{key:"weekly_hours",label:"Weekly hours",render:r=><span className="tabular">{String(r.weekly_hours)} / {String(r.max_weekly_hours)}</span>},{key:"sections",label:"Sections"},{key:"weekly_hours",label:"Load",render:r=>{const n=Number(r.weekly_hours), max=Number(r.max_weekly_hours); return <div className="w-32"><div className="h-1.5 bg-zinc-100 dark:bg-zinc-800"><div className={`h-1.5 ${n > max ? "bg-rose-500" : "bg-indigo-600"}`} style={{width:`${Math.min(n/max*100,100)}%`}}/></div><span className="mt-1 block text-xs text-[var(--muted)]">{n>max ? "Over capacity" : "Within capacity"}</span></div>} }]} empty="No faculty workload data is available."/></>; }
+export default async function FacultyPage() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("v_faculty_workload")
+    .select("*")
+    .order("weekly_hours", { ascending: false });
+  return (
+    <>
+      <PageHeader title="Faculty" description="Teaching capacity and current timetable load." />
+      <DataTable
+        rows={(data ?? []) as unknown as Record<string, unknown>[]}
+        columns={[
+          { key: "full_name", label: "Faculty" },
+          { key: "department_id", label: "Department" },
+          {
+            key: "weekly_hours",
+            label: "Weekly hours",
+            render: (r) => (
+              <span className="tabular">
+                {String(r.weekly_hours)} / {String(r.max_weekly_hours)}
+              </span>
+            ),
+          },
+          { key: "sections", label: "Sections" },
+          {
+            key: "weekly_hours",
+            label: "Load",
+            render: (r) => {
+              const n = Number(r.weekly_hours),
+                max = Number(r.max_weekly_hours);
+              return (
+                <div className="w-32">
+                  <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800">
+                    <div
+                      className={`h-1.5 ${n > max ? "bg-rose-500" : "bg-indigo-600"}`}
+                      style={{ width: `${Math.min((n / max) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="mt-1 block text-xs text-[var(--muted)]">
+                    {n > max ? "Over capacity" : "Within capacity"}
+                  </span>
+                </div>
+              );
+            },
+          },
+        ]}
+        empty="No faculty workload data is available."
+      />
+    </>
+  );
+}

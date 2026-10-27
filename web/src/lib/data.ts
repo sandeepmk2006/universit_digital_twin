@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 
-export async function queryTable(table: string, columns = "*", page = 1, pageSize = 12, search?: string) {
+export async function queryTable(
+  table: string,
+  columns = "*",
+  page = 1,
+  pageSize = 12,
+  search?: string,
+) {
   const supabase = await createClient();
   let query = supabase.from(table).select(columns, { count: "exact" });
   if (search) query = query.ilike("name", `%${search}%`);
@@ -11,8 +17,14 @@ export async function queryTable(table: string, columns = "*", page = 1, pageSiz
 
 export async function getProfile() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase.from("profiles").select("id,full_name,email,role").eq("id", user.id).single();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id,full_name,email,role")
+    .eq("id", user.id)
+    .single();
   return data;
 }
