@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable, PageHeader, Badge } from "@/components/ui";
+import { rowsFrom } from "@/types/db";
 export default async function FacultyPage() {
   const supabase = await createClient();
   const { data } = await supabase
@@ -10,10 +11,10 @@ export default async function FacultyPage() {
     <>
       <PageHeader title="Faculty" description="Teaching capacity and current timetable load." />
       <DataTable
-        rows={(data ?? []) as unknown as Record<string, unknown>[]}
+        rows={rowsFrom(data)}
         columns={[
           { key: "full_name", label: "Faculty" },
-          { key: "department_id", label: "Department" },
+          { key: "department_code", label: "Department" },
           {
             key: "weekly_hours",
             label: "Weekly hours",
@@ -28,14 +29,14 @@ export default async function FacultyPage() {
             key: "weekly_hours",
             label: "Load",
             render: (r) => {
-              const n = Number(r.weekly_hours),
-                max = Number(r.max_weekly_hours);
+              const n = Number(r.weekly_hours);
+              const max = Number(r.max_weekly_hours);
               return (
                 <div className="w-32">
                   <div className="h-1.5 bg-zinc-100 dark:bg-zinc-800">
                     <div
                       className={`h-1.5 ${n > max ? "bg-rose-500" : "bg-indigo-600"}`}
-                      style={{ width: `${Math.min((n / max) * 100, 100)}%` }}
+                      style={{ width: `${Math.min(max ? (n / max) * 100 : 0, 100)}%` }}
                     />
                   </div>
                   <span className="mt-1 block text-xs text-[var(--muted)]">

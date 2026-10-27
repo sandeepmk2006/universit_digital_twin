@@ -77,6 +77,7 @@ export function Shell({
 }) {
   const [open, setOpen] = useState(false);
   const path = usePathname();
+  const isStudent = profile?.role === "student";
   return (
     <div className="min-h-screen md:flex">
       <aside
@@ -94,24 +95,26 @@ export function Shell({
           </button>
         </div>
         <nav className="space-y-5">
-          {groups.map(([group, links]) => (
-            <div key={group}>
-              <p className="mb-2 px-2 text-[11px] font-semibold text-[var(--muted)]">{group}</p>
-              <div className="space-y-0.5">
-                {links.map(([label, href, Icon]) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setOpen(false)}
-                    className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "text-[var(--muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-                  >
-                    <Icon size={15} />
-                    {label}
-                  </Link>
-                ))}
+          {groups
+            .filter(([group]) => !isStudent || !["Administration", "Intelligence"].includes(group))
+            .map(([group, links]) => (
+              <div key={group}>
+                <p className="mb-2 px-2 text-[11px] font-semibold text-[var(--muted)]">{group}</p>
+                <div className="space-y-0.5">
+                  {links.map(([label, href, Icon]) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      onClick={() => setOpen(false)}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${path === href ? "bg-indigo-50 font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "text-[var(--muted)] hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                    >
+                      <Icon size={15} />
+                      {label}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
         </nav>
       </aside>
       <div className="min-w-0 flex-1">

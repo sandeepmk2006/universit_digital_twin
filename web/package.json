@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "lint": "tsc --noEmit"
+    "lint": "next lint && tsc --noEmit"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -22,6 +22,8 @@
     "@types/react": "^19.0.3",
     "@types/react-dom": "^19.0.2",
     "prettier": "^3.3.3",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "15.1.6",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.2"
   }

@@ -1,111 +1,119 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
+import { formatDate, formatPercent } from "@/lib/format";
+import { createClient } from "@/lib/supabase/server";
+import { rowsFrom, type Row } from "@/types/db";
+
+function riskTone(value: unknown) {
+  return value === "high" ? "bad" : value === "medium" ? "warn" : "good";
+}
+
+function explainFactors(value: unknown) {
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value as Record<string, unknown>).map(
+    ([key, factor]) => `${key.replace(/_/g, " ")}: ${String(factor)}`,
+  );
+}
+
 export default async function StudentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [student, enrollments, predictions, recommendations] = await Promise.all([
-    supabase
-      .from("students")
-      .select("*, programs(name,degree), faculty:mentor_id(full_name)")
-      .eq("id", id)
-      .single(),
+  const [student, enrollments, prediction, recommendations] = await Promise.all([
+    supabase.from("v_student_directory").select("*").eq("id", id).single(),
     supabase
       .from("enrollments")
-      .select("id,grade,grade_point,course_sections(section, courses(code,title))")
+      .select(
+        "id,marks,grade,grade_point,attendance_pct,course_sections(section,courses(code,title))",
+      )
       .eq("student_id", id),
     supabase
       .from("performance_predictions")
-      .select("*")
+      .select("predicted_gpa,risk_level,factors,created_at")
       .eq("student_id", id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
       .from("recommendations")
-      .select("*")
+      .select("id,kind,score,payload")
       .eq("student_id", id)
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
   if (!student.data) notFound();
-  const s = student.data as Record<string, unknown>;
+  const s = student.data as Row;
+  const courseName = (row: Row) => {
+    const section = row.course_sections as { courses?: { code?: string; title?: string } } | null;
+    return `${section?.courses?.code ?? "—"} · ${section?.courses?.title ?? "Untitled"}`;
+  };
   return (
     <>
       <PageHeader
         title={String(s.full_name)}
-        description={`${String(s.roll_no)} · ${String((s.programs as { name?: string })?.name ?? "Program")}`}
+        description={`${String(s.roll_no)} · ${String(s.program_code)} · ${String(s.department)}`}
       />
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr]">
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Profile</h2>
-          <dl className="mt-4 space-y-3 text-sm">
-            {[
-              ["Email", s.email],
-              ["Batch", s.batch_year],
-              ["Semester", s.current_semester],
-              ["CGPA", s.cgpa ?? "—"],
-              ["Status", s.status],
-            ].map(([k, v]) => (
-              <div
-                className="flex justify-between border-b border-[var(--line)] pb-2"
-                key={String(k)}
-              >
-                <dt className="text-[var(--muted)]">{String(k)}</dt>
-                <dd>{String(v)}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Enrollments and marks</h2>
-          <div className="mt-4">
-            <DataTable
-              rows={(enrollments.data ?? []) as unknown as Record<string, unknown>[]}
-              columns={[
-                {
-                  key: "course_sections",
-                  label: "Course",
-                  render: (r) =>
-                    String(
-                      ((r.course_sections as { courses?: { code?: string; title?: string } })
-                        ?.courses?.code ?? "") +
-                        " " +
-                        ((r.course_sections as { courses?: { title?: string } })?.courses?.title ??
-                          ""),
-                    ),
-                },
-                { key: "grade", label: "Grade" },
-                { key: "grade_point", label: "Point" },
-              ]}
-              empty="No enrollments are recorded."
-            />
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {[
+          ["Roll no.", s.roll_no],
+          ["Programme", s.program_code],
+          ["Semester", s.current_semester],
+          ["CGPA", s.cgpa ?? "—"],
+          ["Attendance", formatPercent(s.attendance_pct as number)],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="border border-[var(--line)] bg-[var(--panel)] p-4">
+            <div className="text-xs text-[var(--muted)]">{String(label)}</div>
+            <div className="mt-2 font-semibold tabular">{String(value)}</div>
           </div>
-        </section>
+        ))}
       </div>
+      <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
+        <h2 className="font-medium">Course attendance and marks</h2>
+        <div className="mt-4">
+          <DataTable
+            rows={rowsFrom(enrollments.data)}
+            columns={[
+              { key: "course_sections", label: "Course", render: courseName },
+              {
+                key: "attendance_pct",
+                label: "Attendance",
+                render: (r) => (
+                  <span className={Number(r.attendance_pct) < 75 ? "text-rose-600" : ""}>
+                    {formatPercent(r.attendance_pct as number)}
+                  </span>
+                ),
+              },
+              { key: "marks", label: "Marks" },
+              { key: "grade", label: "Grade" },
+              { key: "grade_point", label: "Grade point" },
+            ]}
+            empty="No course records are available."
+          />
+        </div>
+      </section>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
           <h2 className="font-medium">Latest prediction</h2>
-          {predictions.data ? (
-            <div className="mt-4 flex items-center justify-between">
-              <div>
-                <div className="text-3xl font-semibold tabular">
-                  {String(predictions.data.predicted_gpa)}
+          {prediction.data ? (
+            <>
+              <div className="mt-4 flex items-center justify-between">
+                <div>
+                  <div className="text-3xl font-semibold tabular">
+                    {String(prediction.data.predicted_gpa)}
+                  </div>
+                  <div className="text-xs text-[var(--muted)]">
+                    predicted GPA · {formatDate(String(prediction.data.created_at))}
+                  </div>
                 </div>
-                <div className="text-xs text-[var(--muted)]">predicted GPA</div>
+                <Badge tone={riskTone(prediction.data.risk_level)}>
+                  {String(prediction.data.risk_level)}
+                </Badge>
               </div>
-              <Badge
-                tone={
-                  predictions.data.risk_level === "high"
-                    ? "bad"
-                    : predictions.data.risk_level === "medium"
-                      ? "warn"
-                      : "good"
-                }
-              >
-                {String(predictions.data.risk_level)}
-              </Badge>
-            </div>
+              <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-[var(--muted)]">
+                {explainFactors(prediction.data.factors).map((factor) => (
+                  <li key={factor}>{factor}</li>
+                ))}
+              </ul>
+            </>
           ) : (
             <p className="mt-4 text-sm text-[var(--muted)]">
               No prediction has been generated for this student.
@@ -115,14 +123,15 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
         <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
           <h2 className="font-medium">Recommendations</h2>
           <DataTable
-            rows={(recommendations.data ?? []) as unknown as Record<string, unknown>[]}
+            rows={rowsFrom(recommendations.data)}
             columns={[
               { key: "kind", label: "Type" },
               { key: "score", label: "Score" },
               {
                 key: "payload",
                 label: "Recommendation",
-                render: (r) => String(JSON.stringify(r.payload)),
+                render: (r) =>
+                  typeof r.payload === "string" ? r.payload : String(JSON.stringify(r.payload)),
               },
             ]}
             empty="No recommendations are available."

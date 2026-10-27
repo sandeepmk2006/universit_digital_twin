@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { RiskChart } from "@/components/charts";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
+import { rowsFrom } from "@/types/db";
 export default async function InsightsPage() {
   const { data } = await (await createClient())
     .from("performance_predictions")
@@ -26,7 +27,7 @@ export default async function InsightsPage() {
           <h2 className="font-medium">Latest predictions</h2>
           <div className="mt-4">
             <DataTable
-              rows={rows as unknown as Record<string, unknown>[]}
+              rows={rowsFrom(rows)}
               columns={[
                 {
                   key: "students",

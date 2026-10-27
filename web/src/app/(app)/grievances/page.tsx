@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
+import { formatDate } from "@/lib/format";
+import { rowsFrom } from "@/types/db";
 export default async function GrievancesPage() {
   const { data } = await (await createClient())
     .from("grievances")
@@ -12,11 +14,11 @@ export default async function GrievancesPage() {
         description="Track issues through assignment and resolution."
       />
       <DataTable
-        rows={(data ?? []) as unknown as Record<string, unknown>[]}
+        rows={rowsFrom(data)}
         columns={[
           { key: "subject", label: "Subject" },
           { key: "category", label: "Category" },
-          { key: "created_at", label: "Raised" },
+          { key: "created_at", label: "Raised", render: (r) => formatDate(String(r.created_at)) },
           {
             key: "status",
             label: "Status",

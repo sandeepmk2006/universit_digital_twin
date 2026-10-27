@@ -89,11 +89,13 @@ export function Pagination({
   total,
   pageSize,
   basePath,
+  query,
 }: {
   page: number;
   total: number;
   pageSize: number;
   basePath: string;
+  query?: string;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
   return (
@@ -106,13 +108,13 @@ export function Pagination({
       <div className="flex gap-1">
         <Link
           className={`focus-ring border border-[var(--line)] p-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : ""}`}
-          href={`${basePath}?page=${page - 1}`}
+          href={`${basePath}?${query ? `q=${encodeURIComponent(query)}&` : ""}page=${page - 1}`}
         >
           <ChevronLeft size={14} />
         </Link>
         <Link
           className={`focus-ring border border-[var(--line)] p-1.5 ${page >= pages ? "pointer-events-none opacity-40" : ""}`}
-          href={`${basePath}?page=${page + 1}`}
+          href={`${basePath}?${query ? `q=${encodeURIComponent(query)}&` : ""}page=${page + 1}`}
         >
           <ChevronRight size={14} />
         </Link>
@@ -120,12 +122,19 @@ export function Pagination({
     </div>
   );
 }
-export function SearchBox({ placeholder = "Search" }: { placeholder?: string }) {
+export function SearchBox({
+  placeholder = "Search",
+  value = "",
+}: {
+  placeholder?: string;
+  value?: string;
+}) {
   return (
     <div className="flex items-center gap-2 border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm">
       <Search size={15} className="text-[var(--muted)]" />
       <input
-        name="search"
+        name="q"
+        defaultValue={value}
         placeholder={placeholder}
         className="w-full bg-transparent outline-none placeholder:text-[var(--muted)]"
       />

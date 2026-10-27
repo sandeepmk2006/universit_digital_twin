@@ -30,7 +30,7 @@ export default function LoginPage() {
           EduBase
         </div>
         <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Use your university account to continue.</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">University operations platform</p>
         <label className="mt-7 block text-sm font-medium">
           Email
           <input
@@ -56,6 +56,10 @@ export default function LoginPage() {
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        <p className="mt-5 text-xs leading-5 text-[var(--muted)]">
+          Demo accounts: admin@edubase.edu, placements@edubase.edu,
+          abhishek.krishnan.23cse001@student.edubase.edu. Password: EduBase@2026
+        </p>
       </form>
     </main>
   );
