@@ -11,6 +11,9 @@ Lead: claude | Agents: claude, agy, copilot
 | 6 | ML service v1 | agy (gemini fallback) | high | team/agy-ml | merged | copilot review: 3 high findings, fixed in #7 |
 | 7 | ML review fixes (auth, session ownership) | agy | medium | team/agy-ml | merged | lead: 37 tests pass, auth code read |
 | 8 | README | claude | - | main | merged | |
+| 9 | Attendance roll-up (perf) | claude | - | main | merged | KPIs 5.7s -> 0.3s via API |
+| 10 | White theme + clickable records | copilot | high | team/copilot-web3 | merged | lead: crawl 232 pages x 3 roles, 0 issues |
+| 11 | Bug fixes found by crawl + auth latency | claude | - | team/copilot-web3 | merged | crawl clean; warm pages 0.15-0.3s |
 
 ## Notes / decisions
 - Supabase project `edubase` (ap-south-1), ref tzqmlmtzgypguzktzvjk.
