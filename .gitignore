@@ -1,0 +1,7 @@
+.multiagent/worktrees/
+node_modules/
+.env
+.env.local
+.next/
+__pycache__/
+*.jpeg
