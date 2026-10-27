@@ -3,12 +3,16 @@ Lead: claude | Agents: claude, agy, copilot
 
 | # | Task | Owner | Model | Worktree/branch | Status | Verified by |
 |---|------|-------|-------|-----------------|--------|-------------|
-| 1 | Supabase schema + RLS (6 migrations) | claude | - | main | merged | applied to project tzqmlmtzgypguzktzvjk |
-| 2 | Seed data (generate_series SQL) | claude | - | main | running | |
-| 3 | Next.js web app (web/) | copilot | medium | team/copilot-web | todo | |
-| 4 | Python ML service (ml/) | agy | high | team/agy-ml | todo | |
-| 5 | README / docs | claude | - | main | todo | |
+| 1 | Supabase schema + RLS (migrations 1-7) | claude | - | main | merged | applied; advisors clean except leaked-password setting |
+| 2 | Seed data (supabase/seed) | claude | - | main | merged | counts checked; RLS tested with student/admin/anon tokens |
+| 3 | Reporting views (migration 8) | claude | - | main | merged | queried live |
+| 4 | Web app v1 | copilot | medium | team/copilot-web | review | build passes; code was minified -> prettier by lead |
+| 5 | Web app v2 (views, formatting, roles) | copilot | high | team/copilot-web | running | |
+| 6 | ML service v1 | agy (gemini fallback) | high | team/agy-ml | review | reviewed by copilot: 3 high findings |
+| 7 | ML review fixes (auth, session ownership) | agy | medium | team/agy-ml | running | |
+| 8 | README | claude | - | main | merged | |
 
 ## Notes / decisions
 - Supabase project `edubase` (ap-south-1), ref tzqmlmtzgypguzktzvjk.
-- Schema is the contract; helpers must not edit supabase/migrations.
+- Schema is the contract; helpers must not edit supabase/.
+- agy's Claude quota exhausted -> Gemini 3.8 Flash used.
