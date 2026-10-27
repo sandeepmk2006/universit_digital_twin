@@ -16,6 +16,12 @@ import {
   ShieldAlert,
   Users,
   X,
+  UserRound,
+  Wallet,
+  CalendarCheck,
+  Building2,
+  ListChecks,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -141,26 +147,32 @@ export function Shell({
   const isStudent = profile?.role === "student";
 
   // Students get a personal menu, not the institution-wide directory.
+  // Students get a personal portal laid out like EduServe, not the institution directory.
   const studentGroups: NavGroup[] = [
     [
-      "You",
+      "My portal",
       [
-        ["Overview", "/", LayoutDashboard],
-        ...(studentId
-          ? ([["My record", `/students/${studentId}`, GraduationCap]] as NavLink[])
-          : []),
-        ["Grievances", "/grievances", ShieldAlert],
-        ["Feedback", "/feedback", MessageSquare],
-        ["Assistant", "/assistant", MessageSquare],
+        ["Dashboard", "/", LayoutDashboard],
+        ["Personal Information", "/me/profile", UserRound],
+        ["Classes", "/me/classes", BookOpen],
+        ["Exams", "/me/exams", ScanLine],
+        ["Fees", "/me/fees", Wallet],
+        ["Leave", "/me/leave", CalendarCheck],
+        ["Hostel", "/me/hostel", Building2],
+        ["Registration", "/me/registration", ListChecks],
+        ["Requests", "/me/requests", FileText],
       ],
     ],
     [
       "Campus",
       [
+        ["Grievances", "/grievances", ShieldAlert],
+        ["Feedback", "/feedback", MessageSquare],
         ["Library", "/library", BookOpen],
         ["Events", "/events", CalendarDays],
         ["Clubs", "/clubs", Users],
         ["Sports", "/sports", LayoutDashboard],
+        ["Assistant", "/assistant", MessageSquare],
       ],
     ],
   ];

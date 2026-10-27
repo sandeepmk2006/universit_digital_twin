@@ -6,12 +6,16 @@ import type { Role } from "@/lib/roles";
 
 export type FieldType = "text" | "number" | "textarea" | "date" | "datetime" | "select" | "tags";
 
+export type Option = string | { value: string; label: string };
+
 export type Field = {
   name: string;
   label: string;
   type: FieldType;
   required?: boolean;
-  options?: string[];
+  options?: Option[];
+  // Fill the options of a select from a table at render time.
+  optionsFrom?: { table: string; value: string; label: string; order?: string };
   help?: string;
 };
 
@@ -24,6 +28,89 @@ export type WriteSpec = {
 };
 
 export const WRITABLE: Record<string, WriteSpec> = {
+  students: {
+    table: "students",
+    label: "student",
+    writers: [],
+    titleField: "full_name",
+    fields: [
+      { name: "full_name", label: "Full name", type: "text", required: true },
+      {
+        name: "roll_no",
+        label: "Register number",
+        type: "text",
+        required: true,
+        help: "e.g. URK26CS1121",
+      },
+      { name: "email", label: "Official email", type: "text", required: true },
+      {
+        name: "gender",
+        label: "Gender",
+        type: "select",
+        required: true,
+        options: ["male", "female", "other"],
+      },
+      {
+        name: "program_id",
+        label: "Programme",
+        type: "select",
+        required: true,
+        optionsFrom: { table: "programs", value: "id", label: "name", order: "name" },
+      },
+      { name: "batch_year", label: "Batch (year of joining)", type: "number", required: true },
+      { name: "current_semester", label: "Current semester", type: "number", required: true },
+      {
+        name: "status",
+        label: "Status",
+        type: "select",
+        required: true,
+        options: ["active", "graduated", "dropped", "suspended"],
+      },
+      { name: "cgpa", label: "CGPA", type: "number" },
+      { name: "mobile", label: "Mobile", type: "text" },
+      {
+        name: "blood_group",
+        label: "Blood group",
+        type: "select",
+        options: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
+      },
+      { name: "address", label: "Address", type: "textarea" },
+      { name: "city", label: "City", type: "text" },
+      { name: "pincode", label: "Pincode", type: "text" },
+    ],
+  },
+  faculty: {
+    table: "faculty",
+    label: "faculty member",
+    writers: [],
+    titleField: "full_name",
+    fields: [
+      { name: "employee_no", label: "Employee number", type: "text", required: true },
+      { name: "full_name", label: "Full name", type: "text", required: true },
+      { name: "email", label: "Email", type: "text", required: true },
+      {
+        name: "department_id",
+        label: "Department",
+        type: "select",
+        required: true,
+        optionsFrom: { table: "departments", value: "id", label: "name", order: "name" },
+      },
+      {
+        name: "designation",
+        label: "Designation",
+        type: "select",
+        required: true,
+        options: ["Professor and Head", "Professor", "Associate Professor", "Assistant Professor"],
+      },
+      {
+        name: "max_weekly_hours",
+        label: "Max teaching hours / week",
+        type: "number",
+        required: true,
+      },
+      { name: "joined_on", label: "Joined on", type: "date", required: true },
+    ],
+  },
   events: {
     table: "events",
     label: "event",

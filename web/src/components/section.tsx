@@ -126,3 +126,19 @@ export function StatBox({
 export function StatRow({ children }: { children: ReactNode }) {
   return <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>;
 }
+
+// Two-column label / value grid, like EduServe's "Personal Details".
+export function InfoGrid({ items }: { items: Array<[string, unknown]> }) {
+  return (
+    <dl className="grid gap-x-10 gap-y-4 sm:grid-cols-2">
+      {items.map(([label, value]) => (
+        <div key={label} className="grid grid-cols-[minmax(120px,40%)_1fr] gap-3">
+          <dt className="text-sm text-[var(--muted)]">{label}</dt>
+          <dd className="text-sm font-medium text-[var(--ink)]">
+            {(value === null || value === undefined || value === "" ? "—" : value) as ReactNode}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

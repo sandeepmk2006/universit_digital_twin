@@ -5,7 +5,10 @@ import { Badge, DataTable } from "@/components/ui";
 import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
 import { formatDate, formatMoney, formatPercent, formatStatus } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentTerm } from "@/lib/data";
+import { getCurrentTerm, getProfile } from "@/lib/data";
+import { canWrite } from "@/lib/permissions";
+import { RecordFormPage } from "@/components/record-form-page";
+import { EditDelete } from "@/components/record-actions";
 import { rowsFrom, type Row } from "@/types/db";
 
 const TABS = [
@@ -25,10 +28,14 @@ export default async function StudentDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; edit?: string }>;
 }) {
   const { id } = await params;
-  const tab = (await searchParams).tab ?? "overview";
+  const sp = await searchParams;
+  if (id === "new") return <RecordFormPage module="students" />;
+  if (sp.edit) return <RecordFormPage module="students" id={id} />;
+  const tab = sp.tab ?? "overview";
+  const viewer = await getProfile();
   const supabase = await createClient();
 
   const [
@@ -125,6 +132,11 @@ export default async function StudentDetail({
         icon={<GraduationCap size={22} />}
         title={String(s.full_name)}
         subtitle={`${String(s.roll_no)}  ·  ${String(s.program_code)} (${String(s.department)})  ·  Semester ${String(s.current_semester)}${term ? ` (${term.name})` : ""}`}
+        action={
+          canWrite(viewer?.role, "students") ? (
+            <EditDelete module="students" id={id} label="student" />
+          ) : undefined
+        }
         tabs={TABS}
         activeTab={tab}
         baseHref={`/students/${id}`}

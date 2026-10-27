@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { GraduationCap, LayoutDashboard } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  CalendarCheck,
+  FileText,
+  GraduationCap,
+  LayoutDashboard,
+  PencilLine,
+  Wallet,
+} from "lucide-react";
 import { AttendanceChart } from "@/components/charts";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
@@ -66,10 +75,10 @@ async function StudentOverview({ email }: { email: string }) {
         subtitle={`${String(row.roll_no)}  ·  ${String(row.program_code)} (${String(row.department)})  ·  Semester ${String(row.current_semester)}${term ? ` (${term.name})` : ""}`}
         action={
           <Link
-            href={`/students/${String(row.id)}`}
+            href="/me/profile"
             className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
           >
-            View full record
+            View Profile
           </Link>
         }
       />
@@ -89,6 +98,32 @@ async function StudentOverview({ email }: { email: string }) {
           tone="amber"
         />
       </StatRow>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {(
+          [
+            ["Classes", "Timetable & attendance", "/me/classes", BookOpen],
+            ["Exams", "Marks, results, hall ticket", "/me/exams", PencilLine],
+            ["Fees", "Dues & receipts", "/me/fees", Wallet],
+            ["Leave", "Apply & track", "/me/leave", CalendarCheck],
+            ["Hostel", "Room & room-mates", "/me/hostel", Building2],
+            ["Requests", "Certificates & ID", "/me/requests", FileText],
+          ] as const
+        ).map(([title, hint, href, Icon]) => (
+          <Link
+            key={href}
+            href={href}
+            className="group rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4 shadow-sm transition hover:border-indigo-300"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-indigo-50 text-[var(--brand)]">
+              <Icon size={20} />
+            </span>
+            <div className="mt-3 font-semibold text-[var(--ink)] group-hover:text-[var(--brand)]">
+              {title}
+            </div>
+            <div className="text-xs text-[var(--muted)]">{hint}</div>
+          </Link>
+        ))}
+      </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card title="Today's classes">
           <DataTable

@@ -67,11 +67,15 @@ export function RecordForm({
             ) : f.type === "select" ? (
               <select name={f.name} defaultValue={value(f)} required={f.required} className={input}>
                 <option value="">Select…</option>
-                {f.options?.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
+                {f.options?.map((o) => {
+                  const v = typeof o === "string" ? o : o.value;
+                  const l = typeof o === "string" ? o : o.label;
+                  return (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  );
+                })}
               </select>
             ) : (
               <input

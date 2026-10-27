@@ -1,57 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { DataTable, PageHeader, Badge } from "@/components/ui";
-import { rowsFrom } from "@/types/db";
-import { requireModule } from "@/lib/data";
-export default async function FacultyPage() {
-  await requireModule("faculty");
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("v_faculty_workload")
-    .select("faculty_id,full_name,department_id,max_weekly_hours,weekly_hours,sections")
-    .order("weekly_hours", { ascending: false });
-  return (
-    <>
-      <PageHeader title="Faculty" description="Teaching capacity and current timetable load." />
-      <DataTable
-        rows={rowsFrom(data)}
-        columns={[
-          { key: "full_name", label: "Faculty" },
-          { key: "department_code", label: "Department" },
-          {
-            key: "weekly_hours",
-            label: "Weekly hours",
-            render: (r) => (
-              <span className="tabular">
-                {String(r.weekly_hours)} / {String(r.max_weekly_hours)}
-              </span>
-            ),
-          },
-          { key: "sections", label: "Sections" },
-          {
-            key: "weekly_hours",
-            label: "Load",
-            render: (r) => {
-              const n = Number(r.weekly_hours);
-              const max = Number(r.max_weekly_hours);
-              return (
-                <div className="w-32">
-                  <div className="h-1.5 bg-zinc-100">
-                    <div
-                      className={`h-1.5 ${n > max ? "bg-rose-500" : "bg-indigo-600"}`}
-                      style={{ width: `${Math.min(max ? (n / max) * 100 : 0, 100)}%` }}
-                    />
-                  </div>
-                  <span className="mt-1 block text-xs text-[var(--muted)]">
-                    {n > max ? "Over capacity" : "Within capacity"}
-                  </span>
-                </div>
-              );
-            },
-          },
-        ]}
-        rowHref={(row) => `/faculty/${String(row.faculty_id)}`}
-        empty="No faculty workload data is available."
-      />
-    </>
-  );
+import { ModuleList } from "@/components/module-list";
+
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
+}) {
+  const sp = await searchParams;
+  return <ModuleList module="faculty" tab={sp.tab} page={sp.page} q={sp.q} />;
 }

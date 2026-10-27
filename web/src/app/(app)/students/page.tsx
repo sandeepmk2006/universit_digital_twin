@@ -1,4 +1,8 @@
-import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/components/ui";
+import { Users } from "lucide-react";
+import { Badge, DataTable, Pagination, SearchBox } from "@/components/ui";
+import { SectionHeader } from "@/components/section";
+import { canWrite } from "@/lib/permissions";
+import { AddButton } from "@/components/record-actions";
 import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
@@ -11,7 +15,13 @@ function riskTone(value: unknown) {
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string; department?: string; semester?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    q?: string;
+    department?: string;
+    semester?: string;
+    tab?: string;
+  }>;
 }) {
   const profile = await requireModule("students");
   const params = await searchParams;
@@ -53,22 +63,38 @@ export default async function StudentsPage({
   if (q) query = query.or(`full_name.ilike.%${q}%,roll_no.ilike.%${q}%`);
   if (params.department) query = query.eq("department", params.department);
   if (params.semester) query = query.eq("current_semester", Number(params.semester));
+  const tab = params.tab ?? "all";
+  if (tab === "risk") query = query.in("risk_level", ["high", "medium"]);
+  if (tab === "shortage") query = query.lt("attendance_pct", 75);
   const { data, count } = await query;
+  const tabs = [
+    { key: "all", label: scoped ? "My students" : "All students" },
+    { key: "risk", label: "At risk" },
+    { key: "shortage", label: "Attendance shortage" },
+  ];
   return (
     <>
-      <PageHeader
+      <SectionHeader
+        icon={<Users size={22} />}
         title={scoped ? "My students" : "Students"}
-        description={
-          scoped ? "Students you teach or mentor." : "Search and review the student registry."
+        subtitle={`${scoped ? "Students you teach or mentor" : "Student registry"} · ${count ?? 0} records`}
+        action={
+          canWrite(profile?.role, "students") ? (
+            <AddButton module="students" label="student" />
+          ) : undefined
         }
+        tabs={tabs}
+        activeTab={tab}
+        baseHref="/students"
       />
       <form className="mb-4 flex flex-wrap gap-2">
+        {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
         <SearchBox placeholder="Name or roll number" value={q} />
         <input
           name="department"
           defaultValue={params.department}
           placeholder="Department"
-          className="border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
+          className="rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
         />
         <input
           name="semester"
@@ -76,7 +102,7 @@ export default async function StudentsPage({
           type="number"
           min="1"
           placeholder="Semester"
-          className="w-28 border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
+          className="w-28 rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
         />
         <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
           Filter
@@ -87,7 +113,7 @@ export default async function StudentsPage({
         columns={[
           {
             key: "roll_no",
-            label: "Roll no.",
+            label: "Reg. no.",
             render: (r) => <span className="font-medium text-indigo-600">{String(r.roll_no)}</span>,
           },
           { key: "full_name", label: "Student" },
@@ -126,6 +152,7 @@ export default async function StudentsPage({
         pageSize={pageSize}
         basePath="/students"
         query={q}
+        extra={tab === "all" ? undefined : { tab }}
       />
     </>
   );

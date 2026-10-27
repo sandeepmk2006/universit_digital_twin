@@ -111,14 +111,22 @@ export function Pagination({
   pageSize,
   basePath,
   query,
+  extra,
 }: {
   page: number;
   total: number;
   pageSize: number;
   basePath: string;
   query?: string;
+  extra?: Record<string, string>;
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize));
+  const link = (p: number) => {
+    const sp = new URLSearchParams(extra);
+    if (query) sp.set("q", query);
+    sp.set("page", String(p));
+    return `${basePath}?${sp.toString()}`;
+  };
   return (
     <div className="mt-3 flex items-center justify-between text-xs text-[var(--muted)]">
       <span>
@@ -129,13 +137,13 @@ export function Pagination({
       <div className="flex gap-1">
         <Link
           className={`focus-ring border border-[var(--line)] p-1.5 ${page <= 1 ? "pointer-events-none opacity-40" : ""}`}
-          href={`${basePath}?${query ? `q=${encodeURIComponent(query)}&` : ""}page=${page - 1}`}
+          href={link(page - 1)}
         >
           <ChevronLeft size={14} />
         </Link>
         <Link
           className={`focus-ring border border-[var(--line)] p-1.5 ${page >= pages ? "pointer-events-none opacity-40" : ""}`}
-          href={`${basePath}?${query ? `q=${encodeURIComponent(query)}&` : ""}page=${page + 1}`}
+          href={link(page + 1)}
         >
           <ChevronRight size={14} />
         </Link>

@@ -28,6 +28,13 @@ function buildPayload(module: string, form: FormData) {
   return row;
 }
 
+function friendly(error: { code?: string; message: string }) {
+  if (error.code === "23505")
+    return "Another record already uses this value (register number, email or code). Use a unique one.";
+  if (error.code === "23514") return "One of the values is outside the allowed range.";
+  return error.message;
+}
+
 async function guard(module: string) {
   if (!WRITABLE[module]) throw new Error("Unknown module");
   const profile = await getProfile();
@@ -43,7 +50,7 @@ export async function createRecord(module: string, form: FormData) {
     .insert(buildPayload(module, form))
     .select("id")
     .single();
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error) };
   revalidatePath(`/${module}`);
   redirect(`/${module}/${data.id}`);
 }
@@ -52,7 +59,7 @@ export async function updateRecord(module: string, id: string, form: FormData) {
   const supabase = await guard(module);
   const spec = WRITABLE[module];
   const { error } = await supabase.from(spec.table).update(buildPayload(module, form)).eq("id", id);
-  if (error) return { error: error.message };
+  if (error) return { error: friendly(error) };
   revalidatePath(`/${module}/${id}`);
   redirect(`/${module}/${id}`);
 }
@@ -61,7 +68,14 @@ export async function deleteRecord(module: string, id: string) {
   const supabase = await guard(module);
   const spec = WRITABLE[module];
   const { error } = await supabase.from(spec.table).delete().eq("id", id);
-  if (error) return { error: error.message };
+  if (error) {
+    return {
+      error:
+        error.code === "23503"
+          ? `This ${spec.label} is still linked to other records (for example sections, loans or bookings). Reassign or remove those first.`
+          : error.message,
+    };
+  }
   revalidatePath(`/${module}`);
   redirect(`/${module}`);
 }

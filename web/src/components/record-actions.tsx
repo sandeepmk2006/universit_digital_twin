@@ -21,8 +21,10 @@ export function AddButton({ module, label }: { module: string; label: string }) 
 export function EditDelete({ module, id, label }: { module: string; id: string; label: string }) {
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState("");
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
+      {error && <span className="text-sm text-rose-600">{error}</span>}
       <Link href={`/${module}/${id}?edit=1`} className={btn}>
         <Pencil size={14} /> Edit
       </Link>
@@ -31,7 +33,15 @@ export function EditDelete({ module, id, label }: { module: string; id: string; 
           <span className="text-sm text-[var(--muted)]">Delete this {label}?</span>
           <button
             disabled={pending}
-            onClick={() => start(() => void deleteRecord(module, id))}
+            onClick={() =>
+              start(async () => {
+                const res = await deleteRecord(module, id);
+                if (res?.error) {
+                  setError(res.error);
+                  setConfirming(false);
+                }
+              })
+            }
             className="rounded bg-rose-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {pending ? "Deleting…" : "Yes, delete"}
