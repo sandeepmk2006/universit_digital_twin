@@ -5,3 +5,7 @@ node_modules/
 .next/
 __pycache__/
 *.jpeg
+
+# Office lock/temp files
+~$*
+*.tmp
