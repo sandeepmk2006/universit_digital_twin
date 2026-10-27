@@ -13,3 +13,4 @@ __pycache__/
 # Private reference screenshots and browser artifacts
 sample/
 .playwright-mcp/
+docs/EduBase-Accounts.docx
