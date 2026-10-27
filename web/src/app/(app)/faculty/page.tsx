@@ -1,9 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { DataTable, PageHeader, Badge } from "@/components/ui";
 import { rowsFrom } from "@/types/db";
-import { requireStaff } from "@/lib/data";
+import { requireModule } from "@/lib/data";
 export default async function FacultyPage() {
-  await requireStaff();
+  await requireModule("faculty");
   const supabase = await createClient();
   const { data } = await supabase
     .from("v_faculty_workload")

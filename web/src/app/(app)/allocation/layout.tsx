@@ -1,6 +1,6 @@
-import { requireStaff } from "@/lib/data";
+import { requireModule } from "@/lib/data";
 
 export default async function AllocationLayout({ children }: { children: React.ReactNode }) {
-  await requireStaff();
+  await requireModule("allocation");
   return <>{children}</>;
 }

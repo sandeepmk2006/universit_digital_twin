@@ -2,7 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { rowsFrom } from "@/types/db";
+import { requireModule } from "@/lib/data";
 export default async function GrievancesPage() {
+  await requireModule("grievances");
   const { data } = await (await createClient())
     .from("grievances")
     .select("id,category,subject,status,is_anonymous,created_at")

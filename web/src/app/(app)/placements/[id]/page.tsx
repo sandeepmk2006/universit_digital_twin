@@ -1,8 +1,8 @@
 import { ModuleDetail } from "@/components/module-detail";
-import { requireStaff } from "@/lib/data";
+import { requireModule } from "@/lib/data";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  await requireStaff();
+  await requireModule("placements");
   const { id } = await params;
   return <ModuleDetail module="placements" id={id} />;
 }

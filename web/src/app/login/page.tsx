@@ -55,10 +55,6 @@ export default function LoginPage() {
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>
-        <p className="mt-5 text-xs leading-5 text-[var(--muted)]">
-          Demo accounts: admin@edubase.edu, placements@edubase.edu,
-          abhishek.krishnan.23cse001@student.edubase.edu. Password: EduBase@2026
-        </p>
       </form>
     </main>
   );

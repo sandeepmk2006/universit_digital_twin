@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canAccess } from "@/lib/roles";
 
 // Non-teaching and teaching staff see institution-wide records; students and
 // alumni see only their own. The database enforces this with RLS; these helpers
@@ -78,6 +79,37 @@ export async function requireStaff() {
   if (!isStaff(profile?.role)) redirect("/");
   return profile;
 }
+
+// Gate a page by module: roles without access are sent to their own home.
+export async function requireModule(module: string) {
+  const profile = await getProfile();
+  if (!canAccess(profile?.role, module)) redirect("/");
+  return profile;
+}
+
+// The department a HOD heads (via their faculty record), for a scoped dashboard.
+export const getMyDepartment = cache(async () => {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const uid = auth?.claims.sub;
+  if (!uid) return null;
+  const { data } = await supabase
+    .from("faculty")
+    .select("id,department_id,departments(code,name)")
+    .eq("profile_id", uid)
+    .maybeSingle();
+  return data ?? null;
+});
+
+// The caller's faculty row id, if they are teaching staff.
+export const getMyFacultyId = cache(async () => {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const uid = auth?.claims.sub;
+  if (!uid) return null;
+  const { data } = await supabase.from("faculty").select("id").eq("profile_id", uid).maybeSingle();
+  return data?.id ? String(data.id) : null;
+});
 
 // The academic term in progress, with the teaching week, for the header.
 export const getCurrentTerm = cache(async () => {

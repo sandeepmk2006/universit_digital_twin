@@ -2,9 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { RiskChart } from "@/components/charts";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { rowsFrom } from "@/types/db";
-import { requireStaff } from "@/lib/data";
+import { requireModule } from "@/lib/data";
 export default async function InsightsPage() {
-  await requireStaff();
+  await requireModule("insights");
   const { data } = await (await createClient())
     .from("performance_predictions")
     .select(

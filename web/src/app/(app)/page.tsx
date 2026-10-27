@@ -3,7 +3,19 @@ import { AttendanceChart } from "@/components/charts";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
 import { formatDate, formatMoney, formatPercent, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/lib/data";
+import { getMyFacultyId, getProfile } from "@/lib/data";
+import {
+  AlumniDashboard,
+  FacultyDashboard,
+  FinanceDashboard,
+  HealthDashboard,
+  HodDashboard,
+  LibraryDashboard,
+  PlacementDashboard,
+  SecurityDashboard,
+  TransportDashboard,
+  WardenDashboard,
+} from "@/components/role-dashboards";
 import { rowsFrom, type Row } from "@/types/db";
 import type { ReactNode } from "react";
 
@@ -117,7 +129,28 @@ async function StudentOverview({ email }: { email: string }) {
 
 export default async function Overview() {
   const profile = await getProfile();
-  if (profile?.role === "student") return <StudentOverview email={profile.email} />;
+  const role = profile?.role;
+  if (role === "student") return <StudentOverview email={profile!.email} />;
+  if (role === "faculty") {
+    const facultyId = await getMyFacultyId();
+    return facultyId ? (
+      <FacultyDashboard facultyId={facultyId} name={profile!.full_name} />
+    ) : (
+      <PageHeader
+        title="Overview"
+        description="No teaching record is linked to your account yet."
+      />
+    );
+  }
+  if (role === "hod") return <HodDashboard />;
+  if (role === "warden") return <WardenDashboard />;
+  if (role === "placement_officer") return <PlacementDashboard />;
+  if (role === "librarian") return <LibraryDashboard />;
+  if (role === "transport_manager") return <TransportDashboard />;
+  if (role === "doctor") return <HealthDashboard />;
+  if (role === "security") return <SecurityDashboard />;
+  if (role === "accountant") return <FinanceDashboard />;
+  if (role === "alumni") return <AlumniDashboard name={profile!.full_name} />;
   const supabase = await createClient();
   const [{ data: kpi }, { data: departments }, { data: predictions }] = await Promise.all([
     supabase.from("v_dashboard_kpis").select("*").maybeSingle(),

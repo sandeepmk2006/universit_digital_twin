@@ -20,6 +20,60 @@ import {
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/types/db";
+import { ACCESS, ROLE_LABEL, type Role } from "@/lib/roles";
+
+// module -> [label, href, icon, group], used to assemble each role's menu.
+const MODMETA: Record<string, readonly [string, string, typeof Users, string]> = {
+  students: ["Students", "/students", Users, "Academics"],
+  faculty: ["Faculty", "/faculty", GraduationCap, "Academics"],
+  courses: ["Courses", "/courses", BookOpen, "Academics"],
+  timetable: ["Timetable", "/timetable", CalendarDays, "Academics"],
+  attendance: ["Attendance", "/attendance", ClipboardCheck, "Academics"],
+  examinations: ["Examinations", "/examinations", ScanLine, "Academics"],
+  hostel: ["Hostel", "/hostel", LayoutDashboard, "Campus"],
+  library: ["Library", "/library", BookOpen, "Campus"],
+  transport: ["Transport", "/transport", Bus, "Campus"],
+  events: ["Events", "/events", CalendarDays, "Campus"],
+  clubs: ["Clubs", "/clubs", Users, "Campus"],
+  sports: ["Sports", "/sports", LayoutDashboard, "Campus"],
+  health: ["Health Centre", "/health", ClipboardCheck, "Campus"],
+  visitors: ["Visitors", "/visitors", Users, "Campus"],
+  admissions: ["Admissions", "/admissions", Users, "Administration"],
+  placements: ["Placements", "/placements", BarChart3, "Administration"],
+  research: ["Research", "/research", BookOpen, "Administration"],
+  alumni: ["Alumni", "/alumni", Users, "Administration"],
+  finance: ["Finance", "/finance", BarChart3, "Administration"],
+  inventory: ["Inventory", "/inventory", LayoutDashboard, "Administration"],
+  grievances: ["Grievances", "/grievances", ShieldAlert, "Administration"],
+  feedback: ["Feedback", "/feedback", MessageSquare, "Administration"],
+  insights: ["Insights", "/insights", BarChart3, "Intelligence"],
+  allocation: ["Room Allocation", "/allocation", LayoutDashboard, "Intelligence"],
+  assistant: ["Assistant", "/assistant", MessageSquare, "Intelligence"],
+};
+
+// Faculty think in terms of "my" classes, so relabel a couple of entries.
+const FACULTY_LABELS: Record<string, string> = {
+  students: "My students",
+  courses: "My sections",
+  timetable: "My timetable",
+};
+
+function buildNav(role: Role): NavGroup[] {
+  const allowed = ACCESS[role];
+  if (allowed === "*") return [...groups];
+  const order = ["Academics", "Campus", "Administration", "Intelligence"];
+  const out: NavGroup[] = [["", [["Overview", "/", LayoutDashboard]]]];
+  for (const group of order) {
+    const links = allowed
+      .filter((m) => MODMETA[m]?.[3] === group)
+      .map((m) => {
+        const [label, href, icon] = MODMETA[m];
+        return [role === "faculty" ? (FACULTY_LABELS[m] ?? label) : label, href, icon] as NavLink;
+      });
+    if (links.length) out.push([group, links]);
+  }
+  return out;
+}
 
 const groups = [
   [
@@ -110,7 +164,10 @@ export function Shell({
       ],
     ],
   ];
-  const nav: readonly NavGroup[] = isStudent ? studentGroups : groups;
+
+  const role = (profile?.role ?? "student") as Role;
+  const nav: readonly NavGroup[] =
+    role === "admin" ? groups : isStudent ? studentGroups : buildNav(role);
   return (
     <div className="min-h-screen md:flex">
       <aside
@@ -162,7 +219,9 @@ export function Shell({
           <div className="ml-auto flex items-center gap-3">
             <div className="text-right">
               <div className="text-sm font-medium">{profile?.full_name ?? "User"}</div>
-              <div className="text-xs text-[var(--muted)]">{profile?.role ?? "student"}</div>
+              <div className="text-xs text-[var(--muted)]">
+                {ROLE_LABEL[(profile?.role ?? "student") as Role] ?? profile?.role}
+              </div>
             </div>
             <form
               action={async () => {

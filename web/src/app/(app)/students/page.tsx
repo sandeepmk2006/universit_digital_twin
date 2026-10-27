@@ -1,8 +1,8 @@
 import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/components/ui";
 import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import type { Row } from "@/types/db";
-import { requireStaff } from "@/lib/data";
+import { rowsFrom, type Row } from "@/types/db";
+import { getMyFacultyId, requireModule } from "@/lib/data";
 
 function riskTone(value: unknown) {
   return value === "high" ? "bad" : value === "medium" ? "warn" : "good";
@@ -13,12 +13,35 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string; department?: string; semester?: string }>;
 }) {
-  await requireStaff();
+  const profile = await requireModule("students");
   const params = await searchParams;
   const page = Math.max(1, Number(params.page ?? 1));
   const q = params.q?.trim() ?? "";
   const pageSize = 15;
   const supabase = await createClient();
+
+  // Faculty see only the students they teach or mentor, not the whole registry.
+  const scoped = profile?.role === "faculty";
+  let scopeIds: string[] | null = null;
+  if (scoped) {
+    const facultyId = await getMyFacultyId();
+    const [taught, mentees] = await Promise.all([
+      supabase
+        .from("enrollments")
+        .select("student_id,course_sections!inner(faculty_id,academic_terms!inner(is_current))")
+        .eq("course_sections.faculty_id", facultyId)
+        .eq("course_sections.academic_terms.is_current", true),
+      supabase.from("students").select("id").eq("mentor_id", facultyId),
+    ]);
+    scopeIds = [
+      ...new Set([
+        ...rowsFrom(taught.data).map((r) => String(r.student_id)),
+        ...rowsFrom(mentees.data).map((r) => String(r.id)),
+      ]),
+    ];
+    if (scopeIds.length === 0) scopeIds = ["00000000-0000-0000-0000-000000000000"];
+  }
+
   let query = supabase
     .from("v_student_directory")
     .select("id,roll_no,full_name,department,current_semester,attendance_pct,risk_level,status", {
@@ -26,13 +49,19 @@ export default async function StudentsPage({
     })
     .range((page - 1) * pageSize, page * pageSize - 1)
     .order("full_name");
+  if (scopeIds) query = query.in("id", scopeIds);
   if (q) query = query.or(`full_name.ilike.%${q}%,roll_no.ilike.%${q}%`);
   if (params.department) query = query.eq("department", params.department);
   if (params.semester) query = query.eq("current_semester", Number(params.semester));
   const { data, count } = await query;
   return (
     <>
-      <PageHeader title="Students" description="Search and review the student registry." />
+      <PageHeader
+        title={scoped ? "My students" : "Students"}
+        description={
+          scoped ? "Students you teach or mentor." : "Search and review the student registry."
+        }
+      />
       <form className="mb-4 flex flex-wrap gap-2">
         <SearchBox placeholder="Name or roll number" value={q} />
         <input

@@ -3,8 +3,7 @@ import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/component
 import { formatDate, formatLabel, formatMoney, formatStatus, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
-import { getProfile, isStaff, STUDENT_MODULES } from "@/lib/data";
-import { redirect } from "next/navigation";
+import { requireModule } from "@/lib/data";
 
 type ModuleConfig = {
   table: string;
@@ -247,8 +246,7 @@ export default async function ModulePage({
   const { module } = await params;
   const item = config[module];
   if (!item) notFound();
-  const profile = await getProfile();
-  if (!isStaff(profile?.role) && !STUDENT_MODULES.has(module)) redirect("/");
+  await requireModule(module);
   const paramsValue = await searchParams;
   const page = Math.max(1, Number(paramsValue.page ?? 1));
   const q = paramsValue.q?.trim() ?? "";
