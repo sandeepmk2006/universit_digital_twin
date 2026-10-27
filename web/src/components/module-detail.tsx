@@ -11,6 +11,9 @@ import {
   isUuid,
 } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { getProfile } from "@/lib/data";
+import { canWrite, WRITABLE } from "@/lib/permissions";
+import { CheckOutVisitor, EditDelete } from "@/components/record-actions";
 import { rowsFrom, type Row } from "@/types/db";
 
 const labels: Record<string, string> = {
@@ -40,7 +43,7 @@ const mainSelects: Record<string, { table: string; select: string }> = {
   faculty: {
     table: "faculty",
     select:
-      "id,employee_no,full_name,email,department_id,designation,max_weekly_hours,joined_on,is_active,departments(code,name)",
+      "id,employee_no,full_name,email,department_id,designation,max_weekly_hours,joined_on,is_active,departments!faculty_department_id_fkey(code,name)",
   },
   placements: {
     table: "placement_drives",
@@ -64,9 +67,8 @@ const mainSelects: Record<string, { table: string; select: string }> = {
   },
   hostel: { table: "hostels", select: "id,name,gender,capacity,warden_id,profiles(full_name)" },
   library: {
-    table: "book_loans",
-    select:
-      "id,copy_id,borrower_id,issued_on,due_on,returned_on,fine_amount,book_copies(barcode,shelf,condition,books(title,isbn,authors,publisher,year)),profiles(full_name,email)",
+    table: "books",
+    select: "id,isbn,title,authors,publisher,year,subjects",
   },
   transport: {
     table: "buses",
@@ -86,7 +88,7 @@ const mainSelects: Record<string, { table: string; select: string }> = {
   visitors: {
     table: "visitors",
     select:
-      "id,full_name,phone,id_proof,purpose,host_id,checked_in_at,checked_out_at,profiles(full_name)",
+      "id,full_name,phone,id_proof,purpose,host_id,checked_in_at,checked_out_at,profiles!visitors_host_id_fkey(full_name)",
   },
   admissions: {
     table: "applicants",
@@ -348,16 +350,25 @@ export async function ModuleDetail({ module, id }: { module: string; id: string 
       />,
     );
   } else if (module === "library") {
+    const { data: copies } = await supabase
+      .from("book_copies")
+      .select("id,barcode,shelf,condition,book_loans(returned_on)")
+      .eq("book_id", id);
     related.push(
       <Related
-        key="book"
-        title="Loan record"
-        rows={[row]}
+        key="copies"
+        title="Copies"
+        rows={rowsFrom(copies).map((c) => ({
+          ...c,
+          state: rowsFrom(c.book_loans).some((l) => l.returned_on === null)
+            ? "on loan"
+            : "available",
+        }))}
         columns={[
-          { key: "book_copies", label: "Book and copy" },
-          { key: "profiles", label: "Borrower" },
-          { key: "issued_on", label: "Issued", render: (r) => formatDate(String(r.issued_on)) },
-          { key: "due_on", label: "Due", render: (r) => formatDate(String(r.due_on)) },
+          { key: "barcode", label: "Barcode" },
+          { key: "shelf", label: "Shelf" },
+          { key: "condition", label: "Condition" },
+          { key: "state", label: "Status" },
         ]}
       />,
     );
@@ -566,6 +577,12 @@ export async function ModuleDetail({ module, id }: { module: string; id: string 
   }
 
   const title = recordTitle(module, row);
+  const profile = await getProfile();
+  const mayWrite = canWrite(profile?.role, module);
+  const mayCheckOut =
+    module === "visitors" &&
+    !row.checked_out_at &&
+    (profile?.role === "admin" || profile?.role === "security");
   return (
     <>
       <div className="mb-3 text-sm text-[var(--muted)]">
@@ -577,17 +594,21 @@ export async function ModuleDetail({ module, id }: { module: string; id: string 
       <PageHeader
         title={title}
         action={
-          row.status ? (
-            <Badge
-              tone={
-                row.status === "active" || row.status === "paid" || row.status === "returned"
-                  ? "good"
-                  : "neutral"
-              }
-            >
-              {formatStatus(row.status)}
-            </Badge>
-          ) : undefined
+          <div className="flex items-center gap-3">
+            {row.status ? (
+              <Badge
+                tone={
+                  row.status === "active" || row.status === "paid" || row.status === "returned"
+                    ? "good"
+                    : "neutral"
+                }
+              >
+                {formatStatus(row.status)}
+              </Badge>
+            ) : null}
+            {mayCheckOut && <CheckOutVisitor id={id} />}
+            {mayWrite && <EditDelete module={module} id={id} label={WRITABLE[module].label} />}
+          </div>
         }
       />
       <dl className="grid gap-x-6 gap-y-4 border border-[var(--line)] bg-[var(--panel)] p-5 sm:grid-cols-2 lg:grid-cols-3">

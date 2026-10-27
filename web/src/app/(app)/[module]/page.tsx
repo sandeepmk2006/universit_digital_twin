@@ -3,7 +3,9 @@ import { Badge, DataTable, PageHeader, Pagination, SearchBox } from "@/component
 import { formatDate, formatLabel, formatMoney, formatStatus, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { rowsFrom, type Row } from "@/types/db";
-import { requireModule } from "@/lib/data";
+import { getProfile, requireModule } from "@/lib/data";
+import { canWrite, WRITABLE } from "@/lib/permissions";
+import { AddButton } from "@/components/record-actions";
 
 type ModuleConfig = {
   table: string;
@@ -53,18 +55,17 @@ const config: Record<string, ModuleConfig> = {
     select: "id,name,gender,capacity",
   },
   library: {
-    table: "v_library_loans",
+    table: "books",
     title: "Library",
     searchColumn: "title",
     columns: [
-      { key: "title", label: "Book" },
-      { key: "barcode", label: "Barcode" },
-      { key: "borrower", label: "Borrower" },
-      { key: "due_on", label: "Due", format: "date" },
-      { key: "fine_amount", label: "Fine", format: "money" },
-      { key: "state", label: "Status", format: "status" },
+      { key: "title", label: "Title" },
+      { key: "authors", label: "Authors" },
+      { key: "publisher", label: "Publisher" },
+      { key: "year", label: "Year" },
+      { key: "isbn", label: "ISBN" },
     ],
-    select: "id,title,barcode,borrower,due_on,fine_amount,state",
+    select: "id,title,authors,publisher,year,isbn",
   },
   transport: {
     table: "buses",
@@ -262,11 +263,14 @@ export default async function ModulePage({
   if (module === "courses") query = query.eq("is_current", true);
   if (module === "attendance") query = query.order("attendance_pct", { ascending: true });
   const { data, count } = await query;
+  const profile = await getProfile();
+  const mayAdd = canWrite(profile?.role, module);
   return (
     <>
       <PageHeader
         title={item.title}
         description="Operational records from the university system."
+        action={mayAdd ? <AddButton module={module} label={WRITABLE[module].label} /> : undefined}
       />
       <form className="mb-4 flex max-w-md gap-2">
         <SearchBox placeholder={`Search ${item.title.toLowerCase()}`} value={q} />
