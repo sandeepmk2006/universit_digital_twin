@@ -43,7 +43,7 @@ export function PageHeader({
 }
 export function EmptyState({ text = "No records match this view." }: { text?: string }) {
   return (
-    <div className="border border-dashed border-[var(--line)] p-8 text-center text-sm text-[var(--muted)]">
+    <div className="rounded-lg border border-dashed border-[var(--line)] bg-[var(--panel)] p-8 text-center text-sm text-[var(--muted)]">
       {text}
     </div>
   );
@@ -61,7 +61,7 @@ export function DataTable({
 }) {
   if (!rows.length) return <EmptyState text={empty} />;
   return (
-    <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
+    <div className="overflow-x-auto rounded-lg border border-[var(--line)] bg-[var(--panel)] shadow-sm">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-[var(--line)] bg-[#fafafa] text-xs text-[var(--muted)]">
           <tr>

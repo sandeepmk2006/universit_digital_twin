@@ -1,220 +1,385 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, DataTable, PageHeader } from "@/components/ui";
-import { formatDate, formatPercent, formatStatus } from "@/lib/format";
+import { GraduationCap } from "lucide-react";
+import { Badge, DataTable } from "@/components/ui";
+import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
+import { formatDate, formatMoney, formatPercent, formatStatus } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentTerm } from "@/lib/data";
 import { rowsFrom, type Row } from "@/types/db";
 
-function riskTone(value: unknown) {
-  return value === "high" ? "bad" : value === "medium" ? "warn" : "good";
+const TABS = [
+  { key: "overview", label: "Overview" },
+  { key: "attendance", label: "Attendance" },
+  { key: "results", label: "Results" },
+  { key: "advisory", label: "Advisory" },
+  { key: "fees", label: "Fees" },
+];
+
+function riskTone(v: unknown) {
+  return v === "high" ? "bad" : v === "medium" ? "warn" : "good";
 }
 
-function explainFactors(value: unknown) {
-  if (!value || typeof value !== "object") return [];
-  return Object.entries(value as Record<string, unknown>).map(
-    ([key, factor]) => `${key.replace(/_/g, " ")}: ${String(factor)}`,
-  );
-}
-
-export default async function StudentDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function StudentDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const { id } = await params;
+  const tab = (await searchParams).tab ?? "overview";
   const supabase = await createClient();
-  const [student, enrollments, prediction, recommendations, studentRelations, attendance, marks] =
-    await Promise.all([
-      supabase.from("v_student_directory").select("*").eq("id", id).single(),
-      supabase
-        .from("enrollments")
-        .select(
-          "id,grade,grade_point,section_id,course_sections(id,section,academic_terms(name,is_current),courses(code,title,credits))",
-        )
-        .eq("student_id", id),
-      supabase
-        .from("performance_predictions")
-        .select("predicted_gpa,risk_level,factors,created_at")
-        .eq("student_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("recommendations")
-        .select("id,kind,score,payload")
-        .eq("student_id", id)
-        .order("created_at", { ascending: false })
-        .limit(5),
-      supabase
-        .from("students")
-        .select("mentor_id,faculty(id,full_name,employee_no)")
-        .eq("id", id)
-        .single(),
-      supabase.from("v_student_attendance").select("section_id,percentage").eq("student_id", id),
-      supabase
-        .from("marks")
-        .select("obtained,exams(section_id,max_marks,weightage)")
-        .eq("student_id", id),
-    ]);
+
+  const [
+    student,
+    enrollments,
+    attendance,
+    marks,
+    prediction,
+    recommendations,
+    rel,
+    invoices,
+    term,
+  ] = await Promise.all([
+    supabase.from("v_student_directory").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("enrollments")
+      .select(
+        "id,grade,grade_point,section_id,course_sections(academic_terms(name,is_current),courses(code,title,credits))",
+      )
+      .eq("student_id", id),
+    supabase
+      .from("v_student_attendance")
+      .select("section_id,sessions,attended,percentage")
+      .eq("student_id", id),
+    supabase
+      .from("marks")
+      .select("obtained,exams(section_id,max_marks,weightage)")
+      .eq("student_id", id),
+    supabase
+      .from("performance_predictions")
+      .select("predicted_gpa,risk_level,factors,created_at")
+      .eq("student_id", id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("recommendations").select("id,kind,score,payload").eq("student_id", id).limit(8),
+    supabase.from("students").select("faculty(id,full_name)").eq("id", id).maybeSingle(),
+    supabase
+      .from("invoices")
+      .select("id,amount,due_on,status,academic_terms(name)")
+      .eq("student_id", id),
+    getCurrentTerm(),
+  ]);
+
   if (!student.data) notFound();
   const s = student.data as Row;
-  const mentor = Array.isArray(studentRelations.data?.faculty)
-    ? studentRelations.data.faculty[0]
-    : studentRelations.data?.faculty;
-  const attendanceBySection = new Map(
-    rowsFrom(attendance.data).map((r) => [String(r.section_id), Number(r.percentage)]),
-  );
-  // Weighted score so far, as a percentage of the assessments already held.
+  const mentor = Array.isArray(rel.data?.faculty) ? rel.data.faculty[0] : rel.data?.faculty;
+
+  // Per-course attendance and score so far.
+  const attBySection = new Map(rowsFrom(attendance.data).map((r) => [String(r.section_id), r]));
   const scoreBySection = new Map<string, { earned: number; weight: number }>();
-  for (const mark of rowsFrom(marks.data)) {
-    const exam = mark.exams as { section_id: string; max_marks: number; weightage: number } | null;
-    if (!exam) continue;
-    const entry = scoreBySection.get(exam.section_id) ?? { earned: 0, weight: 0 };
-    entry.earned += (Number(mark.obtained) / Number(exam.max_marks)) * Number(exam.weightage);
-    entry.weight += Number(exam.weightage);
-    scoreBySection.set(exam.section_id, entry);
+  for (const m of rowsFrom(marks.data)) {
+    const e = m.exams as { section_id: string; max_marks: number; weightage: number } | null;
+    if (!e) continue;
+    const cur = scoreBySection.get(e.section_id) ?? { earned: 0, weight: 0 };
+    cur.earned += (Number(m.obtained) / Number(e.max_marks)) * Number(e.weightage);
+    cur.weight += Number(e.weightage);
+    scoreBySection.set(e.section_id, cur);
   }
-  const courseRows = rowsFrom(enrollments.data)
-    .map((r) => {
-      const section = r.course_sections as {
-        academic_terms?: { name: string; is_current: boolean };
-      } | null;
-      const score = scoreBySection.get(String(r.section_id));
-      return {
-        ...r,
-        id: r.section_id,
-        term: section?.academic_terms?.name ?? "—",
-        is_current: section?.academic_terms?.is_current ?? false,
-        attendance_pct: attendanceBySection.get(String(r.section_id)) ?? null,
-        score_pct: score && score.weight ? (score.earned / score.weight) * 100 : null,
-      };
-    })
-    .sort((a, b) => Number(b.is_current) - Number(a.is_current) || a.term.localeCompare(b.term));
-  const courseName = (row: Row) => {
-    const section = row.course_sections as {
-      id?: string;
-      courses?: { code?: string; title?: string };
+  const courses = rowsFrom(enrollments.data).map((r) => {
+    const sec = r.course_sections as {
+      academic_terms?: { name: string; is_current: boolean };
+      courses?: { code: string; title: string; credits: number };
     } | null;
-    return `${section?.courses?.code ?? "—"} · ${section?.courses?.title ?? "Untitled"}`;
-  };
+    const att = attBySection.get(String(r.section_id));
+    const sc = scoreBySection.get(String(r.section_id));
+    return {
+      id: r.section_id,
+      code: sec?.courses?.code ?? "—",
+      title: sec?.courses?.title ?? "—",
+      credits: sec?.courses?.credits ?? 0,
+      term: sec?.academic_terms?.name ?? "—",
+      is_current: sec?.academic_terms?.is_current ?? false,
+      attendance_pct: att ? Number(att.percentage) : null,
+      sessions: att ? Number(att.sessions) : 0,
+      attended: att ? Number(att.attended) : 0,
+      grade: r.grade,
+      grade_point: r.grade_point,
+      score_pct: sc && sc.weight ? (sc.earned / sc.weight) * 100 : null,
+    };
+  });
+  const current = courses.filter((c) => c.is_current);
+  const totalSessions = current.reduce((n, c) => n + c.sessions, 0);
+  const totalAttended = current.reduce((n, c) => n + c.attended, 0);
+
+  const inv = rowsFrom(invoices.data);
+  const invoiced = inv.reduce((n, r) => n + Number(r.amount), 0);
+
+  const courseLink = (r: Row) => `/courses/${String(r.id)}`;
+
   return (
     <>
-      <PageHeader
+      <SectionHeader
+        icon={<GraduationCap size={22} />}
         title={String(s.full_name)}
-        description={`${String(s.roll_no)} · ${String(s.program_code)} · ${String(s.department)}`}
+        subtitle={`${String(s.roll_no)}  ·  ${String(s.program_code)} (${String(s.department)})  ·  Semester ${String(s.current_semester)}${term ? ` (${term.name})` : ""}`}
+        tabs={TABS}
+        activeTab={tab}
+        baseHref={`/students/${id}`}
       />
-      {mentor ? (
-        <p className="mb-4 text-sm text-[var(--muted)]">
-          Mentor:{" "}
-          <Link className="text-indigo-600 hover:underline" href={`/faculty/${String(mentor.id)}`}>
-            {String(mentor.full_name)}
-          </Link>
-        </p>
-      ) : null}
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          ["Roll no.", s.roll_no],
-          ["Programme", s.program_code],
-          ["Semester", s.current_semester],
-          ["CGPA", s.cgpa ?? "—"],
-          ["Attendance", formatPercent(s.attendance_pct as number)],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="border border-[var(--line)] bg-[var(--panel)] p-4">
-            <div className="text-xs text-[var(--muted)]">{String(label)}</div>
-            <div className="mt-2 font-semibold tabular">{String(value)}</div>
-          </div>
-        ))}
-      </div>
-      <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-        <h2 className="font-medium">Course attendance and marks</h2>
-        <div className="mt-4">
-          <DataTable
-            rows={courseRows}
-            rowHref={(r) => `/courses/${String(r.id)}`}
-            columns={[
-              { key: "course_sections", label: "Course", render: courseName },
-              { key: "term", label: "Term" },
-              {
-                key: "attendance_pct",
-                label: "Attendance",
-                render: (r) => (
-                  <span className={Number(r.attendance_pct) < 75 ? "text-rose-600" : ""}>
-                    {formatPercent(r.attendance_pct as number)}
-                  </span>
-                ),
-              },
-              {
-                key: "score_pct",
-                label: "Score so far",
-                render: (r) => formatPercent(r.score_pct as number | null),
-              },
-              { key: "grade", label: "Grade" },
-              { key: "grade_point", label: "Grade point" },
-            ]}
-            empty="No course records are available."
-          />
-        </div>
-      </section>
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Latest prediction</h2>
-          {prediction.data ? (
-            <>
-              <div className="mt-4 flex items-center justify-between">
-                <div>
-                  <div className="text-3xl font-semibold tabular">
-                    {String(prediction.data.predicted_gpa)}
-                  </div>
-                  <div className="text-xs text-[var(--muted)]">
-                    predicted GPA · {formatDate(String(prediction.data.created_at))}
-                  </div>
+
+      {tab === "overview" && (
+        <div className="space-y-4">
+          <StatRow>
+            <StatBox label="Register Number" value={String(s.roll_no)} />
+            <StatBox label="CGPA" value={s.cgpa ?? "—"} tone="green" />
+            <StatBox
+              label="Class Attendance"
+              value={formatPercent(s.attendance_pct as number)}
+              tone="green"
+            />
+            <StatBox
+              label="Performance Risk"
+              value={<Badge tone={riskTone(s.risk_level)}>{String(s.risk_level ?? "n/a")}</Badge>}
+              tone="amber"
+            />
+          </StatRow>
+          <Card title="Student details">
+            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ["Register Number", s.roll_no],
+                ["Programme", s.program_code],
+                ["Department", s.department],
+                ["Current Semester", s.current_semester],
+                ["Batch", s.batch_year],
+                ["Status", formatStatus(s.status)],
+                ["Email", s.email],
+                [
+                  "Mentor",
+                  mentor ? (
+                    <Link
+                      className="text-indigo-600 hover:underline"
+                      href={`/faculty/${String(mentor.id)}`}
+                    >
+                      {String(mentor.full_name)}
+                    </Link>
+                  ) : (
+                    "—"
+                  ),
+                ],
+              ].map(([label, value]) => (
+                <div key={String(label)}>
+                  <dt className="text-xs text-[var(--muted)]">{String(label)}</dt>
+                  <dd className="mt-1 text-sm">{value as React.ReactNode}</dd>
                 </div>
-                <Badge tone={riskTone(prediction.data.risk_level)}>
-                  {String(prediction.data.risk_level)}
-                </Badge>
-              </div>
-              <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-[var(--muted)]">
-                {explainFactors(prediction.data.factors).map((factor) => (
-                  <li key={factor}>{factor}</li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p className="mt-4 text-sm text-[var(--muted)]">
-              No prediction has been generated for this student.
-            </p>
-          )}
-        </section>
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Recommendations</h2>
-          <DataTable
-            rows={rowsFrom(recommendations.data)}
-            columns={[
-              { key: "kind", label: "Type", render: (r) => formatStatus(r.kind) },
-              {
-                key: "payload",
-                label: "Recommendation",
-                render: (r) => {
-                  const p = (r.payload ?? {}) as Record<string, unknown>;
-                  const head = p.code
-                    ? `${String(p.code)} · ${String(p.title)}`
-                    : String(p.skill ?? "—");
-                  return (
-                    <div>
-                      <div>{head}</div>
-                      {p.reason ? (
-                        <div className="text-xs text-[var(--muted)]">{String(p.reason)}</div>
-                      ) : null}
-                    </div>
-                  );
+              ))}
+            </dl>
+          </Card>
+        </div>
+      )}
+
+      {tab === "attendance" && (
+        <div className="space-y-4">
+          <StatRow>
+            <StatBox label="Total Sessions" value={totalSessions} />
+            <StatBox label="Attended" value={totalAttended} tone="green" />
+            <StatBox
+              label="Attendance"
+              value={formatPercent(s.attendance_pct as number)}
+              tone={Number(s.attendance_pct) < 75 ? "rose" : "green"}
+            />
+            <StatBox
+              label="Shortfall below 75%"
+              value={current.filter((c) => (c.attendance_pct ?? 100) < 75).length}
+              tone="amber"
+            />
+          </StatRow>
+          <Card title="Course-wise attendance">
+            <DataTable
+              rows={current as unknown as Row[]}
+              rowHref={courseLink}
+              columns={[
+                {
+                  key: "code",
+                  label: "Course",
+                  render: (r) => `${String(r.code)} · ${String(r.title)}`,
                 },
-              },
-              {
-                key: "score",
-                label: "Score",
-                render: (r) => (r.score === null ? "—" : Number(r.score).toFixed(2)),
-              },
-            ]}
-            empty="No recommendations are available."
-          />
-        </section>
-      </div>
+                { key: "sessions", label: "Sessions" },
+                { key: "attended", label: "Attended" },
+                {
+                  key: "attendance_pct",
+                  label: "Attendance",
+                  render: (r) => (
+                    <span
+                      className={Number(r.attendance_pct) < 75 ? "font-medium text-rose-600" : ""}
+                    >
+                      {formatPercent(r.attendance_pct as number)}
+                    </span>
+                  ),
+                },
+              ]}
+              empty="No attendance recorded this term."
+            />
+          </Card>
+        </div>
+      )}
+
+      {tab === "results" && (
+        <div className="space-y-4">
+          <StatRow>
+            <StatBox label="CGPA" value={s.cgpa ?? "—"} tone="green" />
+            <StatBox label="Courses this term" value={current.length} />
+            <StatBox label="Credits" value={current.reduce((n, c) => n + Number(c.credits), 0)} />
+          </StatRow>
+          <Card title="This term — marks so far">
+            <DataTable
+              rows={current as unknown as Row[]}
+              rowHref={courseLink}
+              columns={[
+                {
+                  key: "code",
+                  label: "Course",
+                  render: (r) => `${String(r.code)} · ${String(r.title)}`,
+                },
+                { key: "credits", label: "Credits" },
+                {
+                  key: "score_pct",
+                  label: "Score so far",
+                  render: (r) => formatPercent(r.score_pct as number),
+                },
+              ]}
+              empty="No marks recorded yet."
+            />
+          </Card>
+          <Card title="Completed courses">
+            <DataTable
+              rows={courses.filter((c) => !c.is_current && c.grade) as unknown as Row[]}
+              rowHref={courseLink}
+              columns={[
+                { key: "term", label: "Term" },
+                {
+                  key: "code",
+                  label: "Course",
+                  render: (r) => `${String(r.code)} · ${String(r.title)}`,
+                },
+                { key: "credits", label: "Credits" },
+                {
+                  key: "grade",
+                  label: "Grade",
+                  render: (r) =>
+                    r.grade ? (
+                      <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                        {String(r.grade)}
+                      </span>
+                    ) : (
+                      "—"
+                    ),
+                },
+              ]}
+              empty="No completed courses yet."
+            />
+          </Card>
+        </div>
+      )}
+
+      {tab === "advisory" && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card title="Predicted performance">
+            {prediction.data ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-3xl font-bold tabular">
+                      {String(prediction.data.predicted_gpa)}
+                    </div>
+                    <div className="text-xs text-[var(--muted)]">
+                      predicted GPA · {formatDate(String(prediction.data.created_at))}
+                    </div>
+                  </div>
+                  <Badge tone={riskTone(prediction.data.risk_level)}>
+                    {String(prediction.data.risk_level)} risk
+                  </Badge>
+                </div>
+                <ul className="mt-4 space-y-1 text-sm text-[var(--muted)]">
+                  {Object.entries((prediction.data.factors ?? {}) as Record<string, unknown>).map(
+                    ([k, v]) => (
+                      <li key={k}>
+                        {k.replace(/_/g, " ")}:{" "}
+                        <span className="text-[var(--ink)]">{String(v)}</span>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-[var(--muted)]">No prediction generated.</p>
+            )}
+          </Card>
+          <Card title="Recommendations">
+            <DataTable
+              rows={rowsFrom(recommendations.data)}
+              columns={[
+                { key: "kind", label: "Type", render: (r) => formatStatus(r.kind) },
+                {
+                  key: "payload",
+                  label: "Suggestion",
+                  render: (r) => {
+                    const p = (r.payload ?? {}) as Record<string, unknown>;
+                    const head = p.code
+                      ? `${String(p.code)} · ${String(p.title)}`
+                      : String(p.skill ?? "—");
+                    return (
+                      <div>
+                        <div>{head}</div>
+                        {Boolean(p.reason) && (
+                          <div className="text-xs text-[var(--muted)]">{String(p.reason)}</div>
+                        )}
+                      </div>
+                    );
+                  },
+                },
+              ]}
+              empty="No recommendations yet."
+            />
+          </Card>
+        </div>
+      )}
+
+      {tab === "fees" && (
+        <div className="space-y-4">
+          <StatRow>
+            <StatBox label="Total Invoiced" value={formatMoney(invoiced)} tone="green" />
+            <StatBox label="Invoices" value={inv.length} />
+            <StatBox
+              label="Unpaid"
+              value={inv.filter((r) => r.status !== "paid").length}
+              tone="amber"
+            />
+          </StatRow>
+          <Card title="Fee invoices">
+            <DataTable
+              rows={inv}
+              columns={[
+                { key: "academic_terms", label: "Term" },
+                { key: "amount", label: "Amount", render: (r) => formatMoney(r.amount as number) },
+                { key: "due_on", label: "Due", render: (r) => formatDate(String(r.due_on)) },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (r) => (
+                    <Badge tone={r.status === "paid" ? "good" : "warn"}>
+                      {formatStatus(r.status)}
+                    </Badge>
+                  ),
+                },
+              ]}
+              empty="No invoices on record."
+            />
+          </Card>
+        </div>
+      )}
     </>
   );
 }

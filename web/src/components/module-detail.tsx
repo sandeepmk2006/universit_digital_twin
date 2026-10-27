@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, DataTable, PageHeader } from "@/components/ui";
+import { FileText } from "lucide-react";
+import { Badge, DataTable } from "@/components/ui";
+import { SectionHeader } from "@/components/section";
 import {
   formatDate,
   formatLabel,
@@ -198,7 +200,7 @@ function Related({
   href?: (row: Row) => string | undefined;
 }) {
   return (
-    <section className="mt-4 border border-[var(--line)] bg-[var(--panel)] p-5">
+    <section className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm">
       <h2 className="font-medium">{title}</h2>
       <div className="mt-3">
         <DataTable rows={rows} columns={columns} rowHref={href} />
@@ -585,14 +587,16 @@ export async function ModuleDetail({ module, id }: { module: string; id: string 
     (profile?.role === "admin" || profile?.role === "security");
   return (
     <>
-      <div className="mb-3 text-sm text-[var(--muted)]">
+      <div className="mb-2 text-sm text-[var(--muted)]">
         <Link className="hover:text-[var(--ink)]" href={`/${module}`}>
           {labels[module]}
         </Link>{" "}
         / <span>{title}</span>
       </div>
-      <PageHeader
+      <SectionHeader
+        icon={<FileText size={22} />}
         title={title}
+        subtitle={labels[module]}
         action={
           <div className="flex items-center gap-3">
             {row.status ? (
@@ -611,7 +615,7 @@ export async function ModuleDetail({ module, id }: { module: string; id: string 
           </div>
         }
       />
-      <dl className="grid gap-x-6 gap-y-4 border border-[var(--line)] bg-[var(--panel)] p-5 sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="grid gap-x-6 gap-y-4 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-3">
         {displayFields(row).map(([key, value]) => (
           <div key={key}>
             <dt className="text-xs text-[var(--muted)]">{formatStatus(key)}</dt>

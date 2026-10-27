@@ -6,6 +6,8 @@ import { rowsFrom, type Row } from "@/types/db";
 import { getProfile, requireModule } from "@/lib/data";
 import { canWrite, WRITABLE } from "@/lib/permissions";
 import { AddButton } from "@/components/record-actions";
+import { SectionHeader } from "@/components/section";
+import { Folder } from "lucide-react";
 
 type ModuleConfig = {
   table: string;
@@ -267,9 +269,10 @@ export default async function ModulePage({
   const mayAdd = canWrite(profile?.role, module);
   return (
     <>
-      <PageHeader
+      <SectionHeader
+        icon={<Folder size={22} />}
         title={item.title}
-        description="Operational records from the university system."
+        subtitle={`${count ?? 0} record${count === 1 ? "" : "s"}`}
         action={mayAdd ? <AddButton module={module} label={WRITABLE[module].label} /> : undefined}
       />
       <form className="mb-4 flex max-w-md gap-2">

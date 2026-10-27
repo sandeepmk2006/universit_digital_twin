@@ -1,10 +1,21 @@
-import Link from "next/link";
-import { DataTable, PageHeader } from "@/components/ui";
+import { DataTable } from "@/components/ui";
+import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
+import {
+  BookOpen,
+  Bus,
+  ClipboardList,
+  GraduationCap,
+  Heart,
+  Home,
+  ShieldCheck,
+  Wallet,
+} from "lucide-react";
 import { formatDate, formatMoney, formatPercent, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { getMyDepartment } from "@/lib/data";
 import { rowsFrom, type Row } from "@/types/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { ReactNode } from "react";
 
 type DB = SupabaseClient;
 
@@ -15,40 +26,33 @@ async function count(db: DB, table: string, build?: (q: any) => any): Promise<nu
   return count ?? 0;
 }
 
-function Tiles({ items }: { items: Array<[string, React.ReactNode, string?]> }) {
+const TONES = ["indigo", "green", "amber", "rose"] as const;
+
+function Head({ icon, title, subtitle }: { icon: ReactNode; title: string; subtitle: string }) {
+  return <SectionHeader icon={icon} title={title} subtitle={subtitle} />;
+}
+
+function Tiles({ items }: { items: Array<[string, ReactNode, string?]> }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {items.map(([label, value, href]) => {
-        const body = (
-          <>
-            <div className="text-xs text-[var(--muted)]">{label}</div>
-            <div className="mt-2 text-2xl font-semibold tabular">{value ?? "—"}</div>
-          </>
-        );
-        return href ? (
-          <Link
-            key={label}
-            href={href}
-            className="border border-[var(--line)] bg-[var(--panel)] p-4 hover:border-indigo-300"
-          >
-            {body}
-          </Link>
-        ) : (
-          <div key={label} className="border border-[var(--line)] bg-[var(--panel)] p-4">
-            {body}
-          </div>
-        );
-      })}
-    </div>
+    <StatRow>
+      {items.map(([label, value, href], i) => (
+        <StatBox
+          key={label}
+          label={label}
+          value={value}
+          href={href}
+          tone={TONES[i % TONES.length]}
+        />
+      ))}
+    </StatRow>
   );
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="mt-6 border border-[var(--line)] bg-[var(--panel)] p-5">
-      <h2 className="font-medium">{title}</h2>
-      <div className="mt-4">{children}</div>
-    </section>
+    <div className="mt-4">
+      <Card title={title}>{children}</Card>
+    </div>
   );
 }
 
@@ -80,9 +84,10 @@ export async function FacultyDashboard({ facultyId, name }: { facultyId: string;
   const taught = sectionRows.reduce((n, r) => n + Number(r.enrolled ?? 0), 0);
   return (
     <>
-      <PageHeader
+      <Head
+        icon={<GraduationCap size={22} />}
         title={`Welcome, ${name.split(" ")[0]}`}
-        description="Your teaching workload this term."
+        subtitle="Your teaching workload this term."
       />
       <Tiles
         items={[
@@ -178,7 +183,11 @@ export async function HodDashboard() {
   ]);
   return (
     <>
-      <PageHeader title={name} description="Department overview for this term." />
+      <Head
+        icon={<GraduationCap size={22} />}
+        title={name}
+        subtitle="Department overview for this term."
+      />
       <Tiles
         items={[
           ["Students", students, "/students"],
@@ -212,7 +221,11 @@ export async function WardenDashboard() {
     .limit(8);
   return (
     <>
-      <PageHeader title="Hostel office" description="Occupancy and open complaints." />
+      <Head
+        icon={<Home size={22} />}
+        title="Hostel office"
+        subtitle="Occupancy and open complaints."
+      />
       <Tiles
         items={[
           ["Hostels", hostels, "/hostel"],
@@ -253,7 +266,11 @@ export async function PlacementDashboard() {
     .limit(8);
   return (
     <>
-      <PageHeader title="Placement cell" description="Drives, applications and offers." />
+      <Head
+        icon={<ClipboardList size={22} />}
+        title="Placement cell"
+        subtitle="Drives, applications and offers."
+      />
       <Tiles
         items={[
           ["Drives", drives, "/placements"],
@@ -300,7 +317,11 @@ export async function LibraryDashboard() {
     .limit(8);
   return (
     <>
-      <PageHeader title="Library" description="Circulation and overdue books." />
+      <Head
+        icon={<BookOpen size={22} />}
+        title="Library"
+        subtitle="Circulation and overdue books."
+      />
       <Tiles
         items={[
           ["Titles", titles, "/library"],
@@ -344,7 +365,11 @@ export async function TransportDashboard() {
     .limit(10);
   return (
     <>
-      <PageHeader title="Transport office" description="Routes, fleet and passes." />
+      <Head
+        icon={<Bus size={22} />}
+        title="Transport office"
+        subtitle="Routes, fleet and passes."
+      />
       <Tiles
         items={[
           ["Routes", routes, "/transport"],
@@ -381,7 +406,11 @@ export async function HealthDashboard() {
   const low = rowsFrom(lowStock.data).filter((m) => Number(m.quantity) <= Number(m.reorder_at));
   return (
     <>
-      <PageHeader title="Health centre" description="Visits and medicine stock." />
+      <Head
+        icon={<Heart size={22} />}
+        title="Health centre"
+        subtitle="Visits and medicine stock."
+      />
       <Tiles
         items={[
           ["Visits (total)", visits, "/health"],
@@ -420,7 +449,11 @@ export async function SecurityDashboard() {
     .limit(10);
   return (
     <>
-      <PageHeader title="Gate security" description="Visitors on campus right now." />
+      <Head
+        icon={<ShieldCheck size={22} />}
+        title="Gate security"
+        subtitle="Visitors on campus right now."
+      />
       <Tiles
         items={[
           ["On campus now", onsite, "/visitors"],
@@ -457,7 +490,7 @@ export async function FinanceDashboard() {
   const unpaid = rows.filter((r) => r.status !== "paid").length;
   return (
     <>
-      <PageHeader title="Accounts" description="Fee collection this term." />
+      <Head icon={<Wallet size={22} />} title="Accounts" subtitle="Fee collection this term." />
       <Tiles
         items={[
           ["Invoiced", formatMoney(invoiced), "/finance"],
@@ -480,9 +513,10 @@ export async function AlumniDashboard({ name }: { name: string }) {
     .limit(6);
   return (
     <>
-      <PageHeader
+      <Head
+        icon={<GraduationCap size={22} />}
         title={`Welcome, ${name.split(" ")[0]}`}
-        description="Stay connected with campus."
+        subtitle="Stay connected with campus."
       />
       <Panel title="Upcoming events">
         <DataTable

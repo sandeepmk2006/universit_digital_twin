@@ -9,3 +9,7 @@ __pycache__/
 # Office lock/temp files
 ~$*
 *.tmp
+
+# Private reference screenshots and browser artifacts
+sample/
+.playwright-mcp/

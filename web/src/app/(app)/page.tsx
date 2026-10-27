@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { GraduationCap, LayoutDashboard } from "lucide-react";
 import { AttendanceChart } from "@/components/charts";
 import { Badge, DataTable, PageHeader } from "@/components/ui";
+import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
 import { formatDate, formatMoney, formatPercent, formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { getMyFacultyId, getProfile } from "@/lib/data";
+import { getCurrentTerm, getMyFacultyId, getProfile } from "@/lib/data";
 import {
   AlumniDashboard,
   FacultyDashboard,
@@ -33,6 +35,7 @@ async function StudentOverview({ email }: { email: string }) {
   if (!student.data)
     return <PageHeader title="Overview" description="Your student summary is not available yet." />;
   const row = student.data as Row;
+  const term = await getCurrentTerm();
   // Postgres weekdays are Mon=1..Sat=6; JS getDay() is Sun=0.
   const weekday = new Date().getDay() || 7;
   const { data: enrolled } = await supabase
@@ -57,33 +60,37 @@ async function StudentOverview({ email }: { email: string }) {
   ]);
   return (
     <>
-      <PageHeader
+      <SectionHeader
+        icon={<GraduationCap size={22} />}
         title={`Welcome, ${String(row.full_name).split(" ")[0]}`}
-        description="Your academic and campus summary."
+        subtitle={`${String(row.roll_no)}  ·  ${String(row.program_code)} (${String(row.department)})  ·  Semester ${String(row.current_semester)}${term ? ` (${term.name})` : ""}`}
+        action={
+          <Link
+            href={`/students/${String(row.id)}`}
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white"
+          >
+            View full record
+          </Link>
+        }
       />
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {(
-          [
-            ["Attendance", formatPercent(row.attendance_pct as number)],
-            ["CGPA", row.cgpa ?? "—"],
-            ["Predicted GPA", row.predicted_gpa ?? "—"],
-            [
-              "Risk",
-              <Badge key="risk" tone={toneForRisk(row.risk_level)}>
-                {String(row.risk_level ?? "not assessed")}
-              </Badge>,
-            ],
-          ] as Array<[string, ReactNode]>
-        ).map(([label, value]) => (
-          <div key={String(label)} className="border border-[var(--line)] bg-[var(--panel)] p-4">
-            <div className="text-xs text-[var(--muted)]">{String(label)}</div>
-            <div className="mt-2 text-2xl font-semibold tabular">{value}</div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Today’s timetable</h2>
+      <StatRow>
+        <StatBox
+          label="Class Attendance"
+          value={formatPercent(row.attendance_pct as number)}
+          tone="green"
+        />
+        <StatBox label="CGPA" value={row.cgpa ?? "—"} tone="green" />
+        <StatBox label="Predicted GPA" value={row.predicted_gpa ?? "—"} />
+        <StatBox
+          label="Performance Risk"
+          value={
+            <Badge tone={toneForRisk(row.risk_level)}>{String(row.risk_level ?? "n/a")}</Badge>
+          }
+          tone="amber"
+        />
+      </StatRow>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card title="Today's classes">
           <DataTable
             rows={(timetable.data ?? []) as Row[]}
             rowHref={(r) => `/courses/${String(r.section_id)}`}
@@ -103,9 +110,8 @@ async function StudentOverview({ email }: { email: string }) {
             ]}
             empty="No classes are scheduled today."
           />
-        </section>
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Invoices</h2>
+        </Card>
+        <Card title="Fee invoices">
           <DataTable
             rows={(invoices.data ?? []) as Row[]}
             columns={[
@@ -121,7 +127,7 @@ async function StudentOverview({ email }: { email: string }) {
             ]}
             empty="No invoices are recorded."
           />
-        </section>
+        </Card>
       </div>
     </>
   );
@@ -165,49 +171,44 @@ export default async function Overview() {
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
-  const metrics: Array<[string, ReactNode]> = [
-    ["Active students", kpi?.active_students],
-    ["Active faculty", kpi?.active_faculty],
-    ["Rooms", kpi?.rooms],
-    ["Attendance", formatPercent(kpi?.attendance_pct)],
-    ["Open grievances", kpi?.open_grievances],
-    ["Upcoming events", kpi?.upcoming_events],
-  ];
+  const term = await getCurrentTerm();
   return (
     <>
-      <PageHeader
-        title="Overview"
-        description="A live read on the university’s operating health."
+      <SectionHeader
+        icon={<LayoutDashboard size={22} />}
+        title="Institution overview"
+        subtitle={`A live read on operating health${term ? `  ·  ${term.name} term, week ${term.week}` : ""}`}
       />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-        {metrics.map(([label, value]) => (
-          <div key={String(label)} className="border border-[var(--line)] bg-[var(--panel)] p-4">
-            <div className="text-xs text-[var(--muted)]">{label}</div>
-            <div className="mt-2 text-2xl font-semibold tabular">{value ?? "—"}</div>
-          </div>
-        ))}
-        <Link href="/allocation" className="border border-indigo-200 bg-indigo-50 p-4">
-          <div className="text-xs text-indigo-700">Unassigned slots</div>
-          <div className="mt-2 text-2xl font-semibold tabular text-indigo-700">
-            {String(kpi?.unassigned_slots ?? "—")}
-          </div>
-        </Link>
+        <StatBox label="Active students" value={kpi?.active_students} href="/students" />
+        <StatBox label="Active faculty" value={kpi?.active_faculty} href="/faculty" tone="indigo" />
+        <StatBox label="Rooms" value={kpi?.rooms} />
+        <StatBox label="Attendance" value={formatPercent(kpi?.attendance_pct)} tone="green" />
+        <StatBox
+          label="Open grievances"
+          value={kpi?.open_grievances}
+          href="/grievances"
+          tone="amber"
+        />
+        <StatBox label="Upcoming events" value={kpi?.upcoming_events} href="/events" />
+        <StatBox
+          label="Unassigned slots"
+          value={kpi?.unassigned_slots}
+          href="/allocation"
+          tone="rose"
+        />
       </div>
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">Attendance by department</h2>
-          <div className="mt-4">
-            <AttendanceChart
-              data={(departments ?? []).map((r) => ({
-                name: String(r.name ?? r.department),
-                value: Number(r.attendance_pct ?? 0),
-              }))}
-            />
-          </div>
-        </section>
-        <section className="border border-[var(--line)] bg-[var(--panel)] p-5">
-          <h2 className="font-medium">High-risk students</h2>
-          <div className="mt-4">
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <Card title="Attendance by department">
+          <AttendanceChart
+            data={(departments ?? []).map((r) => ({
+              name: String(r.name ?? r.department),
+              value: Number(r.attendance_pct ?? 0),
+            }))}
+          />
+        </Card>
+        <Card title="High-risk students">
+          <div>
             <DataTable
               rows={rowsFrom(predictions)}
               rowHref={(r) => `/students/${String(r.student_id)}`}
@@ -228,7 +229,7 @@ export default async function Overview() {
               empty="No high-risk predictions are available."
             />
           </div>
-        </section>
+        </Card>
       </div>
     </>
   );

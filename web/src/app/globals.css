@@ -1,12 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #18181b;
-  --muted: #71717a;
-  --line: #e4e4e7;
-  --paper: #ffffff;
-  --panel: #ffffff;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e5e7eb;
+  --paper: #f3f4f6; /* light grey page, like EduServe */
+  --panel: #ffffff; /* white cards */
   --accent: #4f46e5;
+  --brand: #1d4ed8; /* section titles / active tabs */
 }
 * {
   box-sizing: border-box;
