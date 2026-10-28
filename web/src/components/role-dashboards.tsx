@@ -86,7 +86,7 @@ export async function FacultyDashboard({ facultyId, name }: { facultyId: string;
     <>
       <Head
         icon={<GraduationCap size={22} />}
-        title={`Welcome, ${name.split(" ")[0]}`}
+        title={`Welcome, ${name.replace(/^Dr\.\s*/, "").split(" ")[0]}`}
         subtitle="Your teaching workload this term."
       />
       <Tiles
@@ -100,7 +100,9 @@ export async function FacultyDashboard({ facultyId, name }: { facultyId: string;
       <Panel title="Today's classes">
         <DataTable
           rows={rowsFrom(today.data)}
-          rowHref={(r) => `/courses/${String(r.section_id)}`}
+          rowHref={(r) =>
+            `/mark-attendance?section=${String(r.section_id)}&slot=${String(r.starts_at).slice(0, 5)}`
+          }
           columns={[
             {
               key: "starts_at",
@@ -114,6 +116,11 @@ export async function FacultyDashboard({ facultyId, name }: { facultyId: string;
             },
             { key: "section", label: "Section" },
             { key: "room", label: "Room", render: (r) => String(r.room ?? "Unassigned") },
+            {
+              key: "mark",
+              label: "Attendance",
+              render: () => <span className="font-medium text-indigo-600">Mark →</span>,
+            },
           ]}
           empty="No classes scheduled today."
         />
@@ -443,7 +450,7 @@ export async function SecurityDashboard() {
   ]);
   const current = await db
     .from("visitors")
-    .select("id,full_name,purpose,checked_in_at,profiles(full_name)")
+    .select("id,full_name,purpose,checked_in_at,profiles!visitors_host_id_fkey(full_name)")
     .is("checked_out_at", null)
     .order("checked_in_at", { ascending: false })
     .limit(10);
@@ -483,10 +490,22 @@ export async function SecurityDashboard() {
 
 export async function FinanceDashboard() {
   const db = await createClient();
-  const ledger = await db.from("v_invoice_ledger").select("amount,paid,status");
-  const rows = rowsFrom(ledger.data);
+  // Current-term invoices only, read in pages (the API returns at most 1,000 rows per call).
+  const rows: Row[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data } = await db
+      .from("invoices")
+      .select("amount,status,payments(amount),academic_terms!inner(is_current)")
+      .eq("academic_terms.is_current", true)
+      .range(from, from + 999);
+    rows.push(...rowsFrom(data));
+    if (!data || data.length < 1000) break;
+  }
   const invoiced = rows.reduce((n, r) => n + Number(r.amount), 0);
-  const collected = rows.reduce((n, r) => n + Number(r.paid), 0);
+  const collected = rows.reduce(
+    (n, r) => n + rowsFrom(r.payments).reduce((m, p) => m + Number(p.amount), 0),
+    0,
+  );
   const unpaid = rows.filter((r) => r.status !== "paid").length;
   return (
     <>
@@ -515,7 +534,7 @@ export async function AlumniDashboard({ name }: { name: string }) {
     <>
       <Head
         icon={<GraduationCap size={22} />}
-        title={`Welcome, ${name.split(" ")[0]}`}
+        title={`Welcome, ${name.replace(/^Dr\.\s*/, "").split(" ")[0]}`}
         subtitle="Stay connected with campus."
       />
       <Panel title="Upcoming events">

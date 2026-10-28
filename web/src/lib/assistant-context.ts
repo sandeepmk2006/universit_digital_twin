@@ -6,6 +6,10 @@ import { getCurrentTerm, getMyFacultyId, getMyStudentId, getProfile } from "@/li
 type Db = Awaited<ReturnType<typeof createClient>>;
 type Rows = Record<string, unknown>[];
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const EXAM: Record<string, string> = {
+  internal_1: "Internal I", internal_2: "Internal II", internal_3: "Internal III",
+  assignment: "Assignment", lab: "Lab", end_semester: "End-semester exam",
+};
 
 const table = (title: string, rows: Rows | null | undefined, cols: string[]) => {
   if (!rows?.length) return `${title}: none.`;
@@ -64,9 +68,9 @@ async function studentContext(db: Db) {
     table("Attendance by course", (att.data ?? []).map((a) => ({ ...a, course: course(a.section_id)?.courses.code })), ["course", "attended", "sessions", "percentage"]),
     table("Marks so far", (marks.data ?? []).map((m) => {
       const e = m.exams as unknown as { kind: string; max_marks: number; section_id: string };
-      return { course: course(e.section_id)?.courses.code, test: e.kind, scored: m.obtained, out_of: e.max_marks };
+      return { course: course(e.section_id)?.courses.code, test: EXAM[e.kind] ?? e.kind, scored: m.obtained, out_of: e.max_marks };
     }), ["course", "test", "scored", "out_of"]),
-    table("Upcoming assessments", (exams.data ?? []).map((e) => ({ ...e, course: course(e.section_id)?.courses.code })), ["held_on", "course", "kind"]),
+    table("Upcoming assessments", (exams.data ?? []).map((e) => ({ ...e, exam: EXAM[String(e.kind)] ?? e.kind, course: course(e.section_id)?.courses.code })), ["held_on", "course", "exam"]),
     "End-semester examinations: 1-11 December 2026 (one paper a day, no Sundays). Students need at least 75% attendance to write them.",
     "Marks scheme: three internals of 40 converted to 15 each, assignment to 10, attendance 5 (>=95%), 4 (>=90%), 3 (>=85%), 2 (>=80%), 1 (<80%); end semester 100 converted to 40; total 100.",
     table("Current fee invoice", inv.data as Rows, ["amount", "due_on", "status"]),

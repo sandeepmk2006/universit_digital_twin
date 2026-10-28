@@ -34,7 +34,6 @@ The intelligence service:
 | `supabase/seed/` | Synthetic campus: 2,040 students, 120 faculty, 93 rooms, one full term of attendance and marks. |
 | `web/` | Next.js 15 dashboard (App Router, Tailwind, `@supabase/ssr`). |
 | `ml/` | FastAPI service for predictions, recommendations, room allocation and the assistant. |
-| `PLAN.md` | Original project plan. |
 
 ## Data model
 

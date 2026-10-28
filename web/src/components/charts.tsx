@@ -22,7 +22,7 @@ export function AttendanceChart({ data }: { data: { name: string; value: number 
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip />
           <ReferenceLine y={75} stroke="#f59e0b" strokeDasharray="4 4" />
-          <Bar dataKey="value" fill="#4f46e5" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="value" fill="#4f46e5" radius={[2, 2, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -41,6 +41,7 @@ export function RiskChart({ data }: { data: { name: string; value: number }[] })
             innerRadius={52}
             outerRadius={78}
             paddingAngle={3}
+            isAnimationActive={false}
           >
             {data.map((_, i) => (
               <Cell key={i} fill={colors[i]} />
@@ -61,7 +62,7 @@ export function PlacementChart({ data }: { data: { name: string; value: number }
           <XAxis type="number" tick={{ fontSize: 11 }} />
           <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} />
           <Tooltip />
-          <Bar dataKey="value" fill="#4f46e5" />
+          <Bar dataKey="value" fill="#4f46e5" isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

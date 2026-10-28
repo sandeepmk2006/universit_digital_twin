@@ -25,6 +25,7 @@ export const ACCESS: Record<Role, string[] | "*"> = {
     "courses",
     "timetable",
     "attendance",
+    "mark-attendance",
     "examinations",
     "placements",
     "research",
@@ -33,7 +34,7 @@ export const ACCESS: Record<Role, string[] | "*"> = {
     "insights",
     "assistant",
   ],
-  faculty: ["students", "courses", "timetable", "attendance", "examinations", "assistant"],
+  faculty: ["students", "courses", "timetable", "attendance", "mark-attendance", "examinations", "assistant"],
   student: [
     "me",
     "courses",

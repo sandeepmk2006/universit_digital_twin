@@ -95,7 +95,7 @@ export const getMyDepartment = cache(async () => {
   if (!uid) return null;
   const { data } = await supabase
     .from("faculty")
-    .select("id,department_id,departments(code,name)")
+    .select("id,department_id,departments!faculty_department_id_fkey(code,name)")
     .eq("profile_id", uid)
     .maybeSingle();
   return data ?? null;

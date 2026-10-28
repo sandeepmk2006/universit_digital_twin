@@ -64,7 +64,7 @@ async function StudentOverview({ email }: { email: string }) {
       .from("v_invoice_ledger")
       .select("*")
       .eq("roll_no", String(row.roll_no))
-      .order("due_on")
+      .order("due_on", { ascending: false })
       .limit(5),
   ]);
   return (
@@ -237,7 +237,7 @@ export default async function Overview() {
         <Card title="Attendance by department">
           <AttendanceChart
             data={(departments ?? []).map((r) => ({
-              name: String(r.name ?? r.department),
+              name: String(r.department ?? r.name),
               value: Number(r.attendance_pct ?? 0),
             }))}
           />
