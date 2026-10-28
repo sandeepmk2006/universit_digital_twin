@@ -91,7 +91,6 @@ const groups = [
       ["Courses", "/courses", BookOpen],
       ["Timetable", "/timetable", CalendarDays],
       ["Attendance", "/attendance", ClipboardCheck],
-      ["Mark attendance", "/mark-attendance", CalendarCheck],
       ["Examinations", "/examinations", ScanLine],
     ],
   ],

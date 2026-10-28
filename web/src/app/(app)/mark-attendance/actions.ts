@@ -13,7 +13,7 @@ type Mark = { studentId: string; status: (typeof STATUSES)[number] };
 export async function saveAttendance(sectionId: string, heldOn: string, startsAt: string, marks: Mark[]) {
   const profile = await getProfile();
   const role = String(profile?.role ?? "");
-  if (!["faculty", "hod", "admin"].includes(role)) return { error: "Only teaching staff can mark attendance." };
+  if (!["faculty", "hod"].includes(role)) return { error: "Only teaching staff can mark attendance." };
   if (!marks.length) return { error: "There are no students to mark." };
   if (marks.some((m) => !STATUSES.includes(m.status))) return { error: "Unknown attendance status." };
 

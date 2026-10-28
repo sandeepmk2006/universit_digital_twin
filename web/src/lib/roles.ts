@@ -75,6 +75,8 @@ export const ROLE_LABEL: Record<Role, string> = {
 export function canAccess(role: string | null | undefined, module: string): boolean {
   if (!role) return false;
   if (module === "" || module === "assistant") return true;
+  // Attendance is marked by the people who teach: faculty, and a HOD for their department.
+  if (module === "mark-attendance") return role === "faculty" || role === "hod";
   const a = ACCESS[role as Role];
   if (!a) return false;
   return a === "*" || a.includes(module);
