@@ -14,3 +14,8 @@ __pycache__/
 sample/
 .playwright-mcp/
 docs/EduBase-Accounts*.docx
+
+# Documents stay local, never pushed
+docs/
+*.docx
+*.pdf
