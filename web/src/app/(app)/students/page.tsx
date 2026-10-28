@@ -5,8 +5,9 @@ import { canWrite } from "@/lib/permissions";
 import { AddButton } from "@/components/record-actions";
 import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
-import { rowsFrom, type Row } from "@/types/db";
-import { getMyFacultyId, requireModule } from "@/lib/data";
+import { type Row } from "@/types/db";
+import { requireModule } from "@/lib/data";
+import { applyCohort, CohortBar, resolveCohort } from "@/components/cohort";
 
 function riskTone(value: unknown) {
   return value === "high" ? "bad" : value === "medium" ? "warn" : "good";
@@ -18,8 +19,8 @@ export default async function StudentsPage({
   searchParams: Promise<{
     page?: string;
     q?: string;
-    department?: string;
-    semester?: string;
+    year?: string;
+    dept?: string;
     tab?: string;
   }>;
 }) {
@@ -30,39 +31,21 @@ export default async function StudentsPage({
   const pageSize = 15;
   const supabase = await createClient();
 
-  // Faculty see only the students they teach or mentor, not the whole registry.
+  // Row-level security limits faculty to the students they teach or mentor, a HOD to
+  // their department and a warden to their hostel; the list then shows one year and
+  // one department at a time, in register-number order.
   const scoped = profile?.role === "faculty";
-  let scopeIds: string[] | null = null;
-  if (scoped) {
-    const facultyId = await getMyFacultyId();
-    const [taught, mentees] = await Promise.all([
-      supabase
-        .from("enrollments")
-        .select("student_id,course_sections!inner(faculty_id,academic_terms!inner(is_current))")
-        .eq("course_sections.faculty_id", facultyId)
-        .eq("course_sections.academic_terms.is_current", true),
-      supabase.from("students").select("id").eq("mentor_id", facultyId),
-    ]);
-    scopeIds = [
-      ...new Set([
-        ...rowsFrom(taught.data).map((r) => String(r.student_id)),
-        ...rowsFrom(mentees.data).map((r) => String(r.id)),
-      ]),
-    ];
-    if (scopeIds.length === 0) scopeIds = ["00000000-0000-0000-0000-000000000000"];
-  }
+  const cohort = await resolveCohort(params.year, params.dept);
 
   let query = supabase
     .from("v_student_directory")
     .select("id,roll_no,full_name,department,current_semester,attendance_pct,risk_level,status", {
-      count: "estimated",
+      count: "exact",
     })
     .range((page - 1) * pageSize, page * pageSize - 1)
-    .order("full_name");
-  if (scopeIds) query = query.in("id", scopeIds);
+    .order("roll_no");
+  query = applyCohort(query, cohort, { sem: "current_semester", dept: "department" });
   if (q) query = query.or(`full_name.ilike.%${q}%,roll_no.ilike.%${q}%`);
-  if (params.department) query = query.eq("department", params.department);
-  if (params.semester) query = query.eq("current_semester", Number(params.semester));
   const tab = params.tab ?? "all";
   if (tab === "risk") query = query.in("risk_level", ["high", "medium"]);
   if (tab === "shortage") query = query.lt("attendance_pct", 75);
@@ -87,25 +70,18 @@ export default async function StudentsPage({
         activeTab={tab}
         baseHref="/students"
       />
+      <CohortBar
+        cohort={cohort}
+        basePath="/students"
+        keep={{ tab: tab === "all" ? undefined : tab }}
+      />
       <form className="mb-4 flex flex-wrap gap-2">
         {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
-        <SearchBox placeholder="Name or roll number" value={q} />
-        <input
-          name="department"
-          defaultValue={params.department}
-          placeholder="Department"
-          className="rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
-        />
-        <input
-          name="semester"
-          defaultValue={params.semester}
-          type="number"
-          min="1"
-          placeholder="Semester"
-          className="w-28 rounded border border-[var(--line)] bg-[var(--panel)] px-3 text-sm"
-        />
+        <input type="hidden" name="year" value={cohort.year} />
+        <input type="hidden" name="dept" value={cohort.dept} />
+        <SearchBox placeholder="Name or register number" value={q} />
         <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
-          Filter
+          Search
         </button>
       </form>
       <DataTable
@@ -152,7 +128,11 @@ export default async function StudentsPage({
         pageSize={pageSize}
         basePath="/students"
         query={q}
-        extra={tab === "all" ? undefined : { tab }}
+        extra={{
+          ...(tab === "all" ? {} : { tab }),
+          year: String(cohort.year),
+          dept: cohort.dept,
+        }}
       />
     </>
   );

@@ -3,7 +3,8 @@ import { Badge, PageHeader } from "@/components/ui";
 import { formatTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import type { Row } from "@/types/db";
-import { requireModule } from "@/lib/data";
+import { getMyFacultyId, requireModule } from "@/lib/data";
+import { applyCohort, CohortBar, resolveCohort } from "@/components/cohort";
 
 const periods = ["09:00", "10:00", "11:15", "12:15", "14:00", "15:00", "16:00"];
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -11,16 +12,15 @@ const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export default async function TimetablePage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    room?: string;
-    department?: string;
-    semester?: string;
-    section?: string;
-  }>;
+  searchParams: Promise<{ year?: string; dept?: string; section?: string }>;
 }) {
-  await requireModule("timetable");
+  const profile = await requireModule("timetable");
   const params = await searchParams;
   const supabase = await createClient();
+  const isFaculty = profile?.role === "faculty";
+
+  // A timetable belongs to one class (year, department, section) or, for faculty, to the
+  // teacher. Showing every class in one grid hid all but one class per period.
   let query = supabase
     .from("v_timetable")
     .select(
@@ -29,49 +29,59 @@ export default async function TimetablePage({
     .eq("is_current", true)
     .order("weekday")
     .order("starts_at");
-  if (params.room) query = query.eq("room", params.room);
-  if (params.department) query = query.eq("department", params.department);
-  if (params.semester) query = query.eq("semester", Number(params.semester));
-  if (params.section) query = query.eq("section", params.section);
+  const cohort = isFaculty ? null : await resolveCohort(params.year, params.dept);
+  if (isFaculty) {
+    const facultyId = await getMyFacultyId();
+    const { data: mine } = await supabase
+      .from("course_sections")
+      .select("id")
+      .eq("faculty_id", facultyId ?? "");
+    query = query.in("section_id", (mine ?? []).map((r) => String(r.id)));
+  } else if (cohort) {
+    query = applyCohort(query, cohort, { sem: "semester", dept: "department" });
+  }
   const { data } = await query;
-  const rows = (data ?? []) as Row[];
+  const all = (data ?? []) as Row[];
+  const sections = [...new Set(all.map((r) => String(r.section ?? "")))].sort();
+  const section = isFaculty
+    ? null
+    : sections.includes(params.section ?? "")
+      ? params.section!
+      : sections[0];
+  const rows = section === null ? all : all.filter((r) => String(r.section) === section);
+  const sectionHref = (sec: string) =>
+    `/timetable?year=${cohort?.year}&dept=${cohort?.dept}&section=${encodeURIComponent(sec)}`;
   return (
     <>
       <PageHeader
-        title="Timetable"
-        description="Current-term teaching schedule, Monday through Saturday."
+        title={isFaculty ? "My timetable" : "Class timetable"}
+        description={
+          isFaculty
+            ? "Your teaching schedule this term, Monday through Saturday."
+            : `Current-term timetable of one class: ${cohort?.dept ?? ""} year ${cohort?.year ?? ""}${section ? `, section ${section}` : ""}.`
+        }
       />
-      <form className="mb-4 flex flex-wrap gap-2">
-        <input
-          name="room"
-          defaultValue={params.room}
-          placeholder="Room"
-          className="border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm"
-        />
-        <input
-          name="department"
-          defaultValue={params.department}
-          placeholder="Department"
-          className="border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm"
-        />
-        <input
-          name="semester"
-          defaultValue={params.semester}
-          type="number"
-          min="1"
-          placeholder="Semester"
-          className="w-28 border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm"
-        />
-        <input
-          name="section"
-          defaultValue={params.section}
-          placeholder="Section"
-          className="w-28 border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-sm"
-        />
-        <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
-          Filter
-        </button>
-      </form>
+      {cohort && <CohortBar cohort={cohort} basePath="/timetable" />}
+      {cohort && sections.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="w-24 text-xs font-medium uppercase tracking-wide text-[var(--muted)]">
+            Section
+          </span>
+          {sections.map((sec) => (
+            <Link
+              key={sec}
+              href={sectionHref(sec)}
+              className={
+                sec === section
+                  ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white"
+                  : "rounded-full border border-[var(--line)] bg-[var(--panel)] px-3 py-1 text-xs hover:text-indigo-600"
+              }
+            >
+              {sec}
+            </Link>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto border border-[var(--line)] bg-[var(--panel)]">
         <table className="w-full min-w-[900px] table-fixed text-left text-xs">
           <thead className="border-b border-[var(--line)] bg-[#fafafa]">
@@ -111,7 +121,11 @@ export default async function TimetablePage({
                             <div className="font-medium">
                               {String(entry.course_code ?? "Unassigned")}
                             </div>
-                            <div className="text-[var(--muted)]">{String(entry.section ?? "")}</div>
+                            <div className="text-[var(--muted)]">
+                              {isFaculty
+                                ? `${String(entry.department ?? "")} · Sem ${String(entry.semester ?? "")} · ${String(entry.section ?? "")}`
+                                : String(entry.faculty ?? "")}
+                            </div>
                             <div className="mt-1">
                               {entry.room ? (
                                 String(entry.room)

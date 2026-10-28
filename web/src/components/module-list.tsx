@@ -37,6 +37,12 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile, requireModule } from "@/lib/data";
 import { canWrite, WRITABLE } from "@/lib/permissions";
 import { rowsFrom, type Row } from "@/types/db";
+import { applyCohort, CohortBar, resolveCohort, type CohortColumns } from "@/components/cohort";
+
+// Embed that lets a list filter and sort by the student's year, department and register number.
+const STUDENT_EMBED = "students!inner(full_name,roll_no,current_semester,programs!inner(departments!inner(code)))";
+const viaStudent: CohortColumns = { sem: "students.current_semester", dept: "students.programs.departments.code" };
+const direct: CohortColumns = { sem: "current_semester", dept: "department" };
 
 type Format = "date" | "time" | "money" | "status" | "percent";
 type Col = { key: string; label: string; format?: Format };
@@ -50,6 +56,8 @@ type Tab = {
   filter?: (q: any) => any; // eslint-disable-line
   order?: [string, boolean];
   href?: (row: Row) => string | undefined;
+  // Student lists: split by year and department, sorted by register number.
+  cohort?: CohortColumns;
 };
 type Stat = [label: string, value: ReactNode, tone?: "indigo" | "green" | "amber" | "rose"];
 type ModuleDef = {
@@ -198,7 +206,7 @@ export const MODULES: Record<string, ModuleDef> = {
         select: "id,roll_no,full_name,department,current_semester,attendance_pct,risk_level",
         search: "full_name",
         filter: (q) => q.lt("attendance_pct", 75),
-        order: ["attendance_pct", true],
+        order: ["roll_no", true],
         columns: [
           { key: "roll_no", label: "Reg. no." },
           { key: "full_name", label: "Student" },
@@ -207,6 +215,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "attendance_pct", label: "Attendance", format: "percent" },
         ],
         href: (r) => `/students/${String(r.id)}`,
+        cohort: direct,
       },
       {
         key: "all",
@@ -214,7 +223,7 @@ export const MODULES: Record<string, ModuleDef> = {
         table: "v_student_directory",
         select: "id,roll_no,full_name,department,current_semester,attendance_pct",
         search: "full_name",
-        order: ["attendance_pct", true],
+        order: ["roll_no", true],
         columns: [
           { key: "roll_no", label: "Reg. no." },
           { key: "full_name", label: "Student" },
@@ -223,15 +232,16 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "attendance_pct", label: "Attendance", format: "percent" },
         ],
         href: (r) => `/students/${String(r.id)}`,
+        cohort: direct,
       },
       {
         key: "leave",
         label: "Leave requests",
         table: "leave_requests",
         select:
-          "id,leave_type,subject,from_date,to_date,status,student_id,students(full_name,roll_no)",
+          `id,leave_type,subject,from_date,to_date,status,student_id,${STUDENT_EMBED}`,
         search: "subject",
-        order: ["created_at", false],
+        order: ["students(roll_no)", true],
         columns: [
           { key: "students", label: "Student" },
           { key: "leave_type", label: "Type", format: "status" },
@@ -241,6 +251,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "status", label: "Status", format: "status" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        cohort: viaStudent,
       },
     ],
   },
@@ -276,9 +287,9 @@ export const MODULES: Record<string, ModuleDef> = {
         label: "Residents",
         table: "hostel_allocations",
         select:
-          "id,from_date,student_id,students(full_name,roll_no),hostel_rooms(room_no,hostels(name))",
+          `id,from_date,student_id,${STUDENT_EMBED},hostel_rooms(room_no,hostels(name))`,
         filter: (q) => q.is("to_date", null),
-        order: ["from_date", false],
+        order: ["students(roll_no)", true],
         columns: [
           { key: "students", label: "Student" },
           { key: "students.roll_no", label: "Reg. no." },
@@ -287,6 +298,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "from_date", label: "Since", format: "date" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        cohort: viaStudent,
       },
       {
         key: "complaints",
@@ -501,8 +513,8 @@ export const MODULES: Record<string, ModuleDef> = {
         key: "members",
         label: "Members",
         table: "club_members",
-        select: "student_id,position,joined_on,clubs(name),students(full_name,roll_no)",
-        order: ["joined_on", false],
+        select: `student_id,position,joined_on,clubs(name),${STUDENT_EMBED}`,
+        order: ["students(roll_no)", true],
         columns: [
           { key: "students", label: "Student" },
           { key: "students.roll_no", label: "Reg. no." },
@@ -511,6 +523,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "joined_on", label: "Joined", format: "date" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        cohort: viaStudent,
       },
     ],
   },
@@ -550,9 +563,9 @@ export const MODULES: Record<string, ModuleDef> = {
         key: "achievements",
         label: "Achievements",
         table: "sports_achievements",
-        select: "id,student_id,sport,level,title,achieved_on,students(full_name,roll_no)",
+        select: `id,student_id,sport,level,title,achieved_on,${STUDENT_EMBED}`,
         search: "title",
-        order: ["achieved_on", false],
+        order: ["students(roll_no)", true],
         columns: [
           { key: "students", label: "Student" },
           { key: "sport", label: "Sport", format: "status" },
@@ -561,6 +574,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "achieved_on", label: "Date", format: "date" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        cohort: viaStudent,
       },
     ],
   },
@@ -787,6 +801,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "status", label: "Status", format: "status" },
         ],
         href: (r) => `/finance/${String(r.id)}`,
+        cohort: direct,
       },
       {
         key: "dues",
@@ -795,7 +810,7 @@ export const MODULES: Record<string, ModuleDef> = {
         select: "id,roll_no,full_name,amount,paid,due_on,status",
         search: "full_name",
         filter: (q) => q.in("status", ["unpaid", "partial"]),
-        order: ["due_on", true],
+        order: ["roll_no", true],
         columns: [
           { key: "roll_no", label: "Reg. no." },
           { key: "full_name", label: "Student" },
@@ -805,6 +820,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "status", label: "Status", format: "status" },
         ],
         href: (r) => `/finance/${String(r.id)}`,
+        cohort: direct,
       },
       {
         key: "receipts",
@@ -825,7 +841,7 @@ export const MODULES: Record<string, ModuleDef> = {
         key: "scholarships",
         label: "Scholarships",
         table: "scholarships",
-        select: "id,name,amount,student_id,students(full_name,roll_no)",
+        select: `id,name,amount,student_id,${STUDENT_EMBED}`,
         search: "name",
         columns: [
           { key: "students", label: "Student" },
@@ -834,6 +850,8 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "amount", label: "Amount", format: "money" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        order: ["students(roll_no)", true],
+        cohort: viaStudent,
       },
       {
         key: "expenses",
@@ -1009,8 +1027,8 @@ export const MODULES: Record<string, ModuleDef> = {
         label: "Applications",
         table: "placement_applications",
         select:
-          "id,stage,updated_at,student_id,students(full_name,roll_no),placement_drives(role_title,companies(name))",
-        order: ["updated_at", false],
+          `id,stage,updated_at,student_id,${STUDENT_EMBED},placement_drives(role_title,companies(name))`,
+        order: ["students(roll_no)", true],
         columns: [
           { key: "students", label: "Student" },
           { key: "students.roll_no", label: "Reg. no." },
@@ -1019,6 +1037,7 @@ export const MODULES: Record<string, ModuleDef> = {
           { key: "stage", label: "Stage", format: "status" },
         ],
         href: (r) => `/students/${String(r.student_id)}`,
+        cohort: viaStudent,
       },
       {
         key: "offers",
@@ -1145,11 +1164,15 @@ export async function ModuleList({
   tab: tabKey,
   page: pageParam,
   q: qParam,
+  year,
+  dept,
 }: {
   module: string;
   tab?: string;
   page?: string;
   q?: string;
+  year?: string;
+  dept?: string;
 }) {
   const def = MODULES[module];
   if (!def) notFound();
@@ -1159,12 +1182,14 @@ export async function ModuleList({
   const q = qParam?.trim() ?? "";
   const pageSize = 15;
   const supabase = await createClient();
+  const cohort = tab.cohort ? await resolveCohort(year, dept) : null;
 
   let query: any = supabase // eslint-disable-line
     .from(tab.table)
     .select(tab.select, { count: "estimated" })
     .range((page - 1) * pageSize, page * pageSize - 1);
   if (tab.filter) query = tab.filter(query);
+  if (cohort && tab.cohort) query = applyCohort(query, cohort, tab.cohort);
   if (q && tab.search) query = query.ilike(tab.search, `%${q}%`);
   if (tab.order) query = query.order(tab.order[0], { ascending: tab.order[1], nullsFirst: false });
 
@@ -1196,9 +1221,18 @@ export async function ModuleList({
           </StatRow>
         </div>
       )}
+      {cohort && (
+        <CohortBar
+          cohort={cohort}
+          basePath={`/${module}`}
+          keep={{ tab: isPrimary ? undefined : tab.key }}
+        />
+      )}
       {tab.search && (
         <form className="mb-4 flex max-w-md gap-2">
           {!isPrimary && <input type="hidden" name="tab" value={tab.key} />}
+          {cohort && <input type="hidden" name="year" value={cohort.year} />}
+          {cohort && <input type="hidden" name="dept" value={cohort.dept} />}
           <SearchBox placeholder={`Search ${tab.label.toLowerCase()}`} value={q} />
           <button className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
             Search
@@ -1227,7 +1261,10 @@ export async function ModuleList({
         pageSize={pageSize}
         basePath={`/${module}`}
         query={q}
-        extra={isPrimary ? undefined : { tab: tab.key }}
+        extra={{
+          ...(isPrimary ? {} : { tab: tab.key }),
+          ...(cohort ? { year: String(cohort.year), dept: cohort.dept } : {}),
+        }}
       />
     </>
   );

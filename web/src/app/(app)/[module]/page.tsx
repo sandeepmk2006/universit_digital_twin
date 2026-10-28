@@ -5,9 +5,9 @@ export default async function ModulePage({
   searchParams,
 }: {
   params: Promise<{ module: string }>;
-  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; q?: string; year?: string; dept?: string }>;
 }) {
   const { module } = await params;
   const sp = await searchParams;
-  return <ModuleList module={module} tab={sp.tab} page={sp.page} q={sp.q} />;
+  return <ModuleList module={module} tab={sp.tab} page={sp.page} q={sp.q} year={sp.year} dept={sp.dept} />;
 }

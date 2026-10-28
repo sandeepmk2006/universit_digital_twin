@@ -2,13 +2,15 @@ import { GraduationCap, PencilLine } from "lucide-react";
 import { Badge, DataTable } from "@/components/ui";
 import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
 import { PrintButton } from "@/components/student/forms";
-import { getStudentContext } from "@/components/student/context";
+import { getStudentContext, pickSemester } from "@/components/student/context";
+import { SemesterSelect } from "@/components/student/semester-select";
 import { formatDate, formatStatus } from "@/lib/format";
 import { rowsFrom, type Row } from "@/types/db";
 
 const TABS = [
   { key: "schedule", label: "Exam Time Table" },
   { key: "internals", label: "Internal Assessment" },
+  { key: "marks", label: "Internal Marks" },
   { key: "results", label: "Exam Results" },
   { key: "cgpa", label: "Exam History - CGPA/SGPA" },
   { key: "hallticket", label: "Hall Ticket" },
@@ -38,10 +40,15 @@ function endSemDates(n: number) {
 export default async function ExamsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sem?: string }>;
 }) {
-  const tab = (await searchParams).tab ?? "schedule";
-  const { id, supabase, student: s, programme, subtitle, term } = await getStudentContext();
+  const sp = await searchParams;
+  const tab = sp.tab ?? "schedule";
+  const { id, supabase, student: s, programme, subtitle, term, semesters } =
+    await getStudentContext();
+  // Results are published for completed semesters only.
+  const completed = semesters.slice(1);
+  const resultSem = pickSemester(completed, sp.sem);
 
   const { data: enrData } = await supabase
     .from("enrollments")
@@ -173,11 +180,137 @@ export default async function ExamsPage({
     );
   }
 
-  const graded = enr.filter((e) => !e.course_sections.academic_terms.is_current && e.grade);
+  // Karunya scheme: 3 internal tests (40 → 15 each), assignment (→ 10), attendance (5),
+  // end semester (100 → 40); internal 60 + external 40 = 100.
+  if (tab === "marks") {
+    const markSem = pickSemester(semesters, sp.sem);
+    const markTerm = markSem?.label.match(/\((.*) Semester\)/)?.[1];
+    const secs = enr.filter((e) => e.course_sections.academic_terms.name === markTerm);
+    const secIds = secs.map((e) => e.section_id);
+    const [{ data: mk }, { data: att }] = await Promise.all([
+      supabase
+        .from("marks")
+        .select("obtained,exams!inner(kind,max_marks,section_id)")
+        .eq("student_id", id)
+        .in("exams.section_id", secIds),
+      supabase
+        .from("v_student_attendance")
+        .select("section_id,percentage")
+        .eq("student_id", id)
+        .in("section_id", secIds),
+    ]);
+    const scored = (sid: string, kind: string) => {
+      const m = rowsFrom(mk).find((r) => {
+        const e = r.exams as { kind: string; section_id: string };
+        return e.section_id === sid && e.kind === kind;
+      });
+      if (!m) return null;
+      const e = m.exams as { max_marks: number };
+      return { got: Number(m.obtained), max: Number(e.max_marks) };
+    };
+    const conv = (x: { got: number; max: number } | null, to: number) =>
+      x ? (x.got / x.max) * to : null;
+    const attMarks = (pct: number) =>
+      pct >= 95 ? 5 : pct >= 90 ? 4 : pct >= 85 ? 3 : pct >= 80 ? 2 : 1;
+    const sum = (xs: (number | null)[]) =>
+      xs.some((x) => x === null) ? null : xs.reduce<number>((n, x) => n + (x ?? 0), 0);
+    const f = (x: number | null, d = 1) => (x === null ? "—" : x.toFixed(d));
+
+    const rows: Row[] = secs
+      .map((e) => {
+        const sid = e.section_id;
+        const t1 = scored(sid, "internal_1");
+        const t2 = scored(sid, "internal_2");
+        const t3 = scored(sid, "internal_3");
+        const asg = scored(sid, "assignment");
+        const end = scored(sid, "end_semester");
+        const pct = rowsFrom(att).find((a) => a.section_id === sid)?.percentage;
+        const attendance = pct === undefined || pct === null ? null : attMarks(Number(pct));
+        const tests = sum([conv(t1, 15), conv(t2, 15), conv(t3, 15)]);
+        const internal = sum([tests, conv(asg, 10), attendance]);
+        const external = conv(end, 40);
+        return {
+          code: e.course_sections.courses.code,
+          title: e.course_sections.courses.title,
+          t1: t1?.got ?? null,
+          t2: t2?.got ?? null,
+          t3: t3?.got ?? null,
+          tests,
+          asg: conv(asg, 10),
+          pct,
+          attendance,
+          internal,
+          end: end?.got ?? null,
+          external,
+          total: sum([internal, external]),
+        };
+      })
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)));
+    const n = (k: string, d = 1) => (r: Row) => f(r[k] as number | null, d);
+    body = (
+      <Card
+        title="Internal Marks"
+        right={<SemesterSelect semesters={semesters} value={markSem?.sem} />}
+      >
+        <DataTable
+          rows={rows}
+          columns={[
+            { key: "code", label: "Subject Code" },
+            { key: "title", label: "Subject Name" },
+            { key: "t1", label: "Internal I (40)", render: n("t1") },
+            { key: "t2", label: "Internal II (40)", render: n("t2") },
+            { key: "t3", label: "Internal III (40)", render: n("t3") },
+            { key: "tests", label: "Tests (45)", render: n("tests") },
+            { key: "asg", label: "Assignment (10)", render: n("asg") },
+            {
+              key: "attendance",
+              label: "Attendance (5)",
+              render: (r) =>
+                r.attendance === null
+                  ? "—"
+                  : `${String(r.attendance)} (${Number(r.pct).toFixed(1)}%)`,
+            },
+            { key: "internal", label: "Internal (60)", render: n("internal") },
+            { key: "end", label: "End Sem (100)", render: n("end") },
+            { key: "external", label: "End Sem (40)", render: n("external") },
+            {
+              key: "total",
+              label: "Total (100)",
+              render: (r) => <span className="font-semibold">{f(r.total as number | null)}</span>,
+            },
+          ]}
+          empty="No courses registered for this semester."
+        />
+        <p className="mt-3 text-xs text-[var(--muted)]">
+          Three internal tests of 40 marks are converted to 15 each; the assignment to 10;
+          attendance gives 5 (95% and above), 4 (90%), 3 (85%), 2 (80%) or 1 (below 80%). The
+          end-semester examination of 100 marks is converted to 40. A dash means the assessment is
+          not yet held.
+        </p>
+      </Card>
+    );
+  }
+
+  const resultTerm = resultSem?.label.match(/\((.*) Semester\)/)?.[1];
+  const graded = enr.filter(
+    (e) =>
+      !e.course_sections.academic_terms.is_current &&
+      e.grade &&
+      e.course_sections.academic_terms.name === resultTerm,
+  );
 
   if (tab === "results") {
-    body = (
+    body = completed.length === 0 ? (
       <Card title="Exam Results">
+        <p className="text-sm text-[var(--muted)]">
+          Results appear here once your first semester examinations are published.
+        </p>
+      </Card>
+    ) : (
+      <Card
+        title="Exam Results"
+        right={<SemesterSelect semesters={completed} value={resultSem?.sem} />}
+      >
         <DataTable
           rows={graded.map((e) => ({
             term: e.course_sections.academic_terms.name,
@@ -209,7 +342,7 @@ export default async function ExamsPage({
               ),
             },
           ]}
-          empty="No results published yet."
+          empty="No results are held online for this semester."
         />
       </Card>
     );

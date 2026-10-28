@@ -1,7 +1,8 @@
 import { BookOpen } from "lucide-react";
 import { DataTable } from "@/components/ui";
 import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
-import { getStudentContext } from "@/components/student/context";
+import { getStudentContext, pickSemester } from "@/components/student/context";
+import { SemesterSelect } from "@/components/student/semester-select";
 import { formatPercent } from "@/lib/format";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -23,18 +24,20 @@ const mark: Record<string, { t: string; c: string }> = {
 export default async function ClassesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sem?: string }>;
 }) {
-  const tab = (await searchParams).tab ?? "timetable";
-  const { id, supabase, subtitle } = await getStudentContext();
+  const sp = await searchParams;
+  const tab = sp.tab ?? "timetable";
+  const { id, supabase, subtitle, semesters } = await getStudentContext();
+  const selected = pickSemester(semesters, sp.sem);
 
   const { data: enr } = await supabase
     .from("enrollments")
     .select(
-      "section_id,course_sections!inner(academic_terms!inner(is_current),courses(code,title))",
+      "section_id,course_sections!inner(term_id,courses(code,title))",
     )
     .eq("student_id", id)
-    .eq("course_sections.academic_terms.is_current", true);
+    .eq("course_sections.term_id", selected?.termId ?? "");
   const sections = rowsFrom(enr);
   const sectionIds = sections.map((r) => String(r.section_id));
 
@@ -211,7 +214,7 @@ export default async function ClassesPage({
               ),
             },
           ]}
-          empty="No attendance recorded this term."
+          empty="No attendance recorded for this semester."
         />
       </Card>
     );
@@ -227,7 +230,15 @@ export default async function ClassesPage({
         activeTab={tab}
         baseHref="/me/classes"
       />
-      {body}
+      <div className="mb-4 flex justify-end">
+        <SemesterSelect semesters={semesters} value={selected?.sem} />
+      </div>
+      {body ?? null}
+      {sectionIds.length === 0 && (
+        <p className="rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]">
+          No class records are held online for {selected?.label}.
+        </p>
+      )}
     </>
   );
 }

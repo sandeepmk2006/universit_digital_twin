@@ -1,7 +1,8 @@
 import { Wallet } from "lucide-react";
 import { Badge, DataTable } from "@/components/ui";
 import { Card, SectionHeader, StatBox, StatRow } from "@/components/section";
-import { getStudentContext } from "@/components/student/context";
+import { getStudentContext, pickSemester } from "@/components/student/context";
+import { SemesterSelect } from "@/components/student/semester-select";
 import { formatDate, formatMoney, formatStatus } from "@/lib/format";
 import { rowsFrom, type Row } from "@/types/db";
 
@@ -13,10 +14,13 @@ const TABS = [
 export default async function FeesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sem?: string }>;
 }) {
-  const tab = (await searchParams).tab ?? "statement";
-  const { id, supabase, student: s, subtitle } = await getStudentContext();
+  const sp = await searchParams;
+  const tab = sp.tab ?? "statement";
+  const { id, supabase, student: s, subtitle, semesters } = await getStudentContext();
+  const selected = pickSemester(semesters, sp.sem);
+  const isCurrent = selected?.sem === Number(s.current_semester);
 
   const [inv, sch, fees, hostel, pass] = await Promise.all([
     supabase
@@ -46,15 +50,24 @@ export default async function FeesPage({
   const paid = payments.reduce((n, p) => n + Number(p.amount), 0);
   const scholarship = rowsFrom(sch.data).reduce((n, r) => n + Number(r.amount), 0);
   const due = Math.max(0, billed - paid - scholarship);
-  const current = invoices[0];
+  const current = invoices.find((i) => i.term_id === selected?.termId);
+  const semPayments = payments.filter((p) =>
+    rowsFrom(current?.payments).some((x) => x.reference === p.reference),
+  );
 
-  const lines: Row[] = [
-    ...rowsFrom(fees.data).map((f) => ({ desc: `${String(f.component)} fee`, amount: f.amount })),
-    ...(rowsFrom(hostel.data).length ? [{ desc: "Hostel and mess fee", amount: 62000 }] : []),
-    ...(rowsFrom(pass.data).length ? [{ desc: "Transport (bus pass) fee", amount: 14000 }] : []),
-  ].map((l) => ({
+  // Current semester: itemised fee structure. Earlier semesters: the semester invoice.
+  const items: Row[] = !current
+    ? []
+    : isCurrent
+      ? [
+          ...rowsFrom(fees.data).map((f) => ({ desc: `${String(f.component)} fee`, amount: f.amount })),
+          ...(rowsFrom(hostel.data).length ? [{ desc: "Hostel and mess fee", amount: 62000 }] : []),
+          ...(rowsFrom(pass.data).length ? [{ desc: "Transport (bus pass) fee", amount: 14000 }] : []),
+        ]
+      : [{ desc: "Semester fee (tuition and other fees)", amount: current.amount }];
+  const lines: Row[] = items.map((l) => ({
     ...l,
-    semester: `Semester ${String(s.current_semester)}`,
+    semester: `Semester ${String(selected?.sem)}`,
     last: current?.due_on,
     status: current?.status,
   }));
@@ -74,8 +87,11 @@ export default async function FeesPage({
           <StatBox label="Total Due" value={formatMoney(due)} tone={due ? "rose" : "green"} />
           <StatBox label="Total Paid" value={formatMoney(paid)} tone="green" />
           <StatBox label="Total Scholarship" value={formatMoney(scholarship)} tone="indigo" />
-          <StatBox label="Billed this year" value={formatMoney(billed)} />
+          <StatBox label="Total Billed" value={formatMoney(billed)} />
         </StatRow>
+      </div>
+      <div className="mb-4 flex justify-end">
+        <SemesterSelect semesters={semesters} value={selected?.sem} />
       </div>
       {tab === "statement" && (
         <Card title="Overall Fees Statement">
@@ -102,7 +118,7 @@ export default async function FeesPage({
                 ),
               },
             ]}
-            empty="No fees have been levied this term."
+            empty="No fees were levied for this semester."
           />
           {rowsFrom(sch.data).length > 0 && (
             <p className="mt-3 text-sm text-[var(--muted)]">
@@ -117,7 +133,7 @@ export default async function FeesPage({
       {tab === "receipts" && (
         <Card title="Download Fee Receipts">
           <DataTable
-            rows={payments}
+            rows={semPayments}
             columns={[
               { key: "paid_at", label: "Date", render: (r) => formatDate(String(r.paid_at)) },
               { key: "reference", label: "Receipt No." },
@@ -133,7 +149,7 @@ export default async function FeesPage({
                 render: (r) => formatMoney(r.amount as number),
               },
             ]}
-            empty="No payments recorded yet."
+            empty="No payments recorded for this semester."
           />
         </Card>
       )}

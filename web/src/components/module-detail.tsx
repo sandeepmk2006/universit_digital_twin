@@ -39,6 +39,7 @@ const labels: Record<string, string> = {
   faculty: "Faculty",
   placements: "Placements",
   timetable: "Timetable",
+  grievances: "Grievances",
 };
 
 const mainSelects: Record<string, { table: string; select: string }> = {
