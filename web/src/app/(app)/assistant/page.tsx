@@ -1,47 +1,54 @@
-"use client";
-import { useState } from "react";
-import { PageHeader } from "@/components/ui";
-export default function AssistantPage() {
-  const [message, setMessage] = useState("");
-  const [reply, setReply] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function send() {
-    if (!message.trim()) return;
-    setBusy(true);
-    setReply("");
-    const r = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, session_id: null }),
-    });
-    const b = await r.json();
-    setReply(b.error ?? b.reply ?? "No response returned.");
-    setBusy(false);
-  }
+import { MessageSquare } from "lucide-react";
+import { Chat } from "@/components/chat";
+import { SectionHeader } from "@/components/section";
+import { getProfile } from "@/lib/data";
+
+// Starter questions that the context for each role can actually answer.
+const SUGGESTIONS: Record<string, string[]> = {
+  student: [
+    "When do I have classes tomorrow?",
+    "Which course has my lowest attendance?",
+    "How many marks do I have so far in each subject?",
+    "When is my next exam?",
+    "Do I have any fee dues?",
+  ],
+  faculty: [
+    "What is my teaching timetable this week?",
+    "Which of my students are at risk?",
+    "Are there leave requests waiting for me?",
+  ],
+  hod: [
+    "How is attendance across departments?",
+    "How many students are at high risk?",
+    "How many grievances are open for my office?",
+  ],
+  warden: ["How full are my residences?", "How many complaints are open?", "What are the hostel rules?"],
+  accountant: ["How many invoices are unpaid or partial?", "Summarise the fee status."],
+  placement_officer: ["List the recent placement drives.", "Which drives offered the highest package?"],
+  librarian: ["How many books are on loan?", "What are the library rules?"],
+  admin: [
+    "Give me an overview of the institution today.",
+    "Which department has the lowest attendance?",
+    "How many students are at high risk?",
+  ],
+};
+
+export default async function AssistantPage() {
+  const profile = await getProfile();
+  const role = String(profile?.role ?? "student");
+  const first = String(profile?.full_name ?? "").replace(/^Dr\.\s*/, "").split(" ")[0];
   return (
     <>
-      <PageHeader
+      <SectionHeader
+        icon={<MessageSquare size={22} />}
         title="Assistant"
-        description="Ask questions grounded in university data and policies."
+        subtitle="Answers from your own records and the university handbook. It only sees what your login can see."
       />
-      <div className="max-w-2xl border border-[var(--line)] bg-[var(--panel)] p-5">
-        <div className="min-h-40 border border-[var(--line)] p-4 text-sm text-[var(--muted)]">
-          {reply || "Ask about schedules, attendance, policies, or campus services."}
-        </div>
-        <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type a question…"
-          className="mt-3 min-h-24 w-full resize-y border border-[var(--line)] bg-transparent p-3 outline-none"
-        />
-        <button
-          onClick={send}
-          disabled={busy}
-          className="mt-3 rounded bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50"
-        >
-          {busy ? "Thinking…" : "Send message"}
-        </button>
-      </div>
+      <Chat
+        storageKey={`edubase-chat-${profile?.id ?? "anon"}`}
+        greeting={`Hi ${first || "there"}, ask me about your timetable, attendance, marks, fees, hostel or campus rules.`}
+        suggestions={SUGGESTIONS[role] ?? ["What can you help me with?", "What are the campus rules?"]}
+      />
     </>
   );
 }

@@ -161,6 +161,7 @@ export function Shell({
         ["Hostel", "/me/hostel", Building2],
         ["Registration", "/me/registration", ListChecks],
         ["Requests", "/me/requests", FileText],
+        ["Study Assistant", "/me/study", GraduationCap],
       ],
     ],
     [
